@@ -19,8 +19,6 @@ jobs:
   build:
     name: Build & Test
     runs-on: ubuntu-latest
-    # No working-directory override needed.
-    # actions/checkout already places the repo at the runner root.
 
     steps:
       - name: Checkout repository
@@ -42,10 +40,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
+      # Install via cargo so the binary lands in ~/.cargo/bin,
+      # which is already on PATH thanks to dtolnay/rust-toolchain.
       - name: Install Stellar CLI
-        run: |
-          curl -sSL https://install.stellar.org | bash
-          echo "$HOME/.stellar/bin" >> $GITHUB_PATH
+        run: cargo install stellar-cli
 
       - name: Check tool versions
         run: |
