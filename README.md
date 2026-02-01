@@ -20,16 +20,6 @@ Alien Gateway is a **username-based crypto payment protocol** built primarily on
 
 ---
 
-## 🌐 Supported Chains
-
-- **Stellar** (Primary)
-- **Ethereum**
-- **Starknet**
-
-One username → Multiple wallets across chains.
-
----
-
 ## 🔑 Features
 
 - 💬 Universal crypto username  
@@ -53,7 +43,7 @@ One username → Multiple wallets across chains.
 ## ⚙️ How It Works
 
 1. Register `@username` on Stellar  
-2. Link ETH + Starknet wallets  
+2. Link wallet Address. 
 3. Send crypto using username  
 4. System auto-resolves destination  
 
