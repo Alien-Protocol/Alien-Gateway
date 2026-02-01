@@ -1,4 +1,4 @@
-name: Soroban Smart Contracts — Checks
+name: Checks
 
 on:
   push:
