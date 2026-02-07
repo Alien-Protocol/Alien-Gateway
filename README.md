@@ -3,7 +3,7 @@
 
 > **Send crypto to `@username` instead of long wallet addresses**
 
-Alien Gateway is a **username-based crypto payment protocol** built primarily on **Stellar Blockchain**, with support for **Ethereum** and **Starknet**.
+Alien Gateway is a **username-based crypto payment protocol** built primarily on **Stellar Blockchain & ZK**, with support for **Ethereum** and **Starknet**.
 
 
 ---
