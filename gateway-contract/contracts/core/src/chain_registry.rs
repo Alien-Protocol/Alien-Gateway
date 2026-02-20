@@ -1,12 +1,21 @@
 #![no_std]
 use crate::types::{ChainAddress, ChainId, ChainRegistryEvent};
-use soroban_sdk::{contract, contractimpl, Env, String, Address, Vec, Map};
+use soroban_sdk::{contract, contractimpl, Env, String, Address, Vec, Map, Symbol};
 
 #[contract]
 pub struct ChainRegistry;
 
 const OWNER_KEY: &str = "owner";
 const ADDRESSES_KEY: &str = "addresses";
+
+#[contracterror]
+pub enum ContractError {
+    OwnerNotSet,
+    Unauthorized,
+    AddressExists,
+    AddressNotFound,
+    IndexOutOfBounds,
+}
 
 /// Storage key for chain addresses: "chain:{chain_id}"
 fn chain_storage_key(chain: &ChainId) -> String {
@@ -37,15 +46,15 @@ impl ChainRegistry {
         chain: ChainId,
         address: String,
         label: String,
-    ) -> Result<(), String> {
+    ) -> Result<(), ContractError> {
         // Verify owner authorization
         let owner_key = String::from_str(&env, OWNER_KEY);
         let owner: Address = env.storage().instance().get(&owner_key)
-            .ok_or(String::from_str(&env, "Owner not set"))?;
+            .ok_or(ContractError::OwnerNotSet)?;
         
         env.invoker().require_auth();
         if env.invoker() != owner {
-            return Err(String::from_str(&env, "Only owner can add chain addresses"));
+            return Err(ContractError::Unauthorized);
         }
 
         // Check for duplicates
@@ -58,7 +67,7 @@ impl ChainRegistry {
         // Check if address already exists for this chain
         for existing in addresses_vec.iter() {
             if existing.address == address {
-                return Err(String::from_str(&env, "Address already exists for this chain"));
+                return Err(ContractError::AddressExists);
             }
         }
 
@@ -76,7 +85,7 @@ impl ChainRegistry {
 
         // Emit event
         env.events().publish(
-            (String::from_str(&env, "ChainRegistry"), String::from_str(&env, "ChainAddressAdded")),
+            (Symbol::new(&env, "ChainRegistry"), Symbol::new(&env, "ChainAddressAdded")),
             ChainRegistryEvent::ChainAddressAdded {
                 chain,
                 address,
@@ -101,11 +110,11 @@ impl ChainRegistry {
         env: Env,
         chain: ChainId,
         index: u32,
-    ) -> Result<ChainAddress, String> {
+    ) -> Result<ChainAddress, ContractError> {
         let addresses = Self::get_chain_addresses(env.clone(), chain);
         
         if index >= addresses.len() {
-            return Err(String::from_str(&env, "Index out of bounds"));
+            return Err(ContractError::IndexOutOfBounds);
         }
 
         Ok(addresses.get(index).unwrap())
@@ -134,15 +143,15 @@ impl ChainRegistry {
         env: Env,
         chain: ChainId,
         address: String,
-    ) -> Result<(), String> {
+    ) -> Result<(), ContractError> {
         // Verify owner authorization
         let owner_key = String::from_str(&env, OWNER_KEY);
         let owner: Address = env.storage().instance().get(&owner_key)
-            .ok_or(String::from_str(&env, "Owner not set"))?;
+            .ok_or(ContractError::OwnerNotSet)?;
         
         env.invoker().require_auth();
         if env.invoker() != owner {
-            return Err(String::from_str(&env, "Only owner can remove chain addresses"));
+            return Err(ContractError::Unauthorized);
         }
 
         // Get current addresses
@@ -166,7 +175,7 @@ impl ChainRegistry {
         }
 
         if !found {
-            return Err(String::from_str(&env, "Address not found"));
+            return Err(ContractError::AddressNotFound);
         }
 
         // Update storage
@@ -174,7 +183,7 @@ impl ChainRegistry {
 
         // Emit event
         env.events().publish(
-            (String::from_str(&env, "ChainRegistry"), String::from_str(&env, "ChainAddressRemoved")),
+            (Symbol::new(&env, "ChainRegistry"), Symbol::new(&env, "ChainAddressRemoved")),
             ChainRegistryEvent::ChainAddressRemoved {
                 chain,
                 address,
@@ -185,30 +194,30 @@ impl ChainRegistry {
     }
 
     /// Get the current owner
-    pub fn get_owner(env: Env) -> Result<Address, String> {
+    pub fn get_owner(env: Env) -> Result<Address, ContractError> {
         let owner_key = String::from_str(&env, OWNER_KEY);
         env.storage()
             .instance()
             .get(&owner_key)
-            .ok_or(String::from_str(&env, "Owner not set"))
+            .ok_or(ContractError::OwnerNotSet)
     }
 
     /// Change the owner (current owner only)
-    pub fn change_owner(env: Env, new_owner: Address) -> Result<(), String> {
+    pub fn change_owner(env: Env, new_owner: Address) -> Result<(), ContractError> {
         let owner_key = String::from_str(&env, OWNER_KEY);
         let current_owner: Address = env.storage().instance().get(&owner_key)
-            .ok_or(String::from_str(&env, "Owner not set"))?;
+            .ok_or(ContractError::OwnerNotSet)?;
         
         env.invoker().require_auth();
         if env.invoker() != current_owner {
-            return Err(String::from_str(&env, "Only current owner can change owner"));
+            return Err(ContractError::Unauthorized);
         }
 
         env.storage().instance().set(&owner_key, &new_owner);
 
         // Emit event
         env.events().publish(
-            (String::from_str(&env, "ChainRegistry"), String::from_str(&env, "OwnerChanged")),
+            (Symbol::new(&env, "ChainRegistry"), Symbol::new(&env, "OwnerChanged")),
             ChainRegistryEvent::OwnerChanged {
                 new_owner: new_owner.clone(),
             },
