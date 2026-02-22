@@ -9,3 +9,4 @@ template Hello() {
 }
 
 component main = Hello();
+
