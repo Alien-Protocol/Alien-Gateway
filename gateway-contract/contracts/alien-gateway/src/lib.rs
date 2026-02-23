@@ -3,6 +3,7 @@ use soroban_sdk::{contract, contractimpl, vec, Env, String, Vec};
 
 pub mod address_manager;
 pub mod contract_core;
+pub mod types;
 
 pub use address_manager::AddressManager;
 pub use contract_core::CoreContract;
