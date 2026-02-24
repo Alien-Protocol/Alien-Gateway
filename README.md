@@ -1,5 +1,9 @@
 
-# 🌉 Alien Gateway 
+# 🌉 Alien Gateway
+
+[![Smart Contracts CI](https://github.com/Alien-Protocol/Alien-Gateway/actions/workflows/build_test.yml/badge.svg)](https://github.com/Alien-Protocol/Alien-Gateway/actions/workflows/build_test.yml)
+[![Checks](https://github.com/Alien-Protocol/Alien-Gateway/actions/workflows/checks.yml/badge.svg)](https://github.com/Alien-Protocol/Alien-Gateway/actions/workflows/checks.yml)
+[![ZK Circuits CI](https://github.com/Alien-Protocol/Alien-Gateway/actions/workflows/zk_circuits.yml/badge.svg)](https://github.com/Alien-Protocol/Alien-Gateway/actions/workflows/zk_circuits.yml)
 
 > **Send crypto to `@username` on Stellar**
 
@@ -79,4 +83,52 @@ SNS treats **usernames as a core payment primitive**, not just metadata.
 **One username. One identity. Stellar-native.**
 
 Alien Gateway aims to be the **identity and payment resolution layer** for the Stellar ecosystem.
+
+---
+
+## Development
+
+### Building the Smart Contract
+
+```bash
+cd gateway-contract
+stellar contract build
+```
+
+### Running Contract Tests
+
+```bash
+cd gateway-contract
+cargo test
+```
+
+### Compiling ZK Circuits
+
+```bash
+cd zk
+npm install
+
+# Compile all circuits
+npm run compile:all
+
+# Or compile individual circuits
+npm run compile:hello
+npm run compile:username_hash
+npm run compile:merkle_path
+npm run compile:merkle_inclusion
+npm run compile:merkle_update
+npm run compile:username_merkle
+```
+
+### CI/CD Pipeline
+
+The project uses GitHub Actions for continuous integration:
+
+- **Smart Contracts CI**: Builds the Soroban contract to WASM and runs all Rust tests
+- **Checks**: Runs code formatting (rustfmt) and linting (clippy) checks
+- **ZK Circuits CI**: Compiles all Circom circuits to ensure they build without errors
+
+All checks must pass before PRs can be merged.
+
+---
 

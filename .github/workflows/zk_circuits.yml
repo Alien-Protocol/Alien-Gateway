@@ -1,0 +1,40 @@
+name: ZK Circuits CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  circuits:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: zk
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: zk/package-lock.json
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Compile all circuits
+      run: npm run compile:all
+
+    - name: Verify circuit compilation
+      run: |
+        echo "✅ All circuits compiled successfully"
+        echo "Compiled circuits:"
+        ls -lh build/ | grep -E '\.(r1cs|wasm|sym)$' || true
+        echo ""
+        echo "Circuit directories:"
+        find build -type d -name "*_js" | head -10
