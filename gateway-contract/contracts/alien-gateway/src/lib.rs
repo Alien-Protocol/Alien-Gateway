@@ -1,8 +1,7 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype, contracterror,
-    Env, BytesN, Address, panic_with_error
+    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, BytesN, Env,
 };
 
 #[contract]
@@ -44,14 +43,8 @@ pub enum ResolverError {
 
 #[contractimpl]
 impl Contract {
-
     // Register commitment → wallet (+ optional memo)
-    pub fn register(
-        env: Env,
-        commitment: BytesN<32>,
-        wallet: Address,
-        memo: Option<u64>,
-    ) {
+    pub fn register(env: Env, commitment: BytesN<32>, wallet: Address, memo: Option<u64>) {
         let data = ResolveData { wallet, memo };
 
         env.storage()

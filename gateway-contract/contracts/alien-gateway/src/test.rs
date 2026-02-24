@@ -1,8 +1,8 @@
 #![cfg(test)]
 
 use crate::{Contract, ContractClient};
-use soroban_sdk::{Env, BytesN, Address};
 use soroban_sdk::testutils::Address as AddressTestUtils;
+use soroban_sdk::{Address, BytesN, Env};
 
 #[test]
 fn test_resolve_found_without_memo() {
@@ -13,8 +13,7 @@ fn test_resolve_found_without_memo() {
 
     let commitment = BytesN::from_array(&env, &[1u8; 32]);
 
-    let wallet =
-        <Address as AddressTestUtils>::generate(&env);
+    let wallet = <Address as AddressTestUtils>::generate(&env);
 
     client.register(&commitment, &wallet, &None);
 
@@ -33,8 +32,7 @@ fn test_resolve_found_with_memo() {
 
     let commitment = BytesN::from_array(&env, &[2u8; 32]);
 
-    let wallet =
-        <Address as AddressTestUtils>::generate(&env);
+    let wallet = <Address as AddressTestUtils>::generate(&env);
 
     client.register(&commitment, &wallet, &Some(12345));
 
