@@ -1,37 +1,37 @@
 use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol};
 
+use crate::contract_core;
+use crate::types::AddressMetadata;
+
 // Storage Keys
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
-    Owner,
     Address(Address),
     MasterAddress,
+    StellarAddress(Address),
 }
 
-// Event Symbol
-const MASTER_SET: Symbol = symbol_short!("MASTER_SET");
+// Event Symbols
+const MASTER_SET: Symbol = symbol_short!("MSTR_SET");
+const ADDR_ADDED: Symbol = symbol_short!("ADDR_ADD");
 
 pub struct AddressManager;
 
 impl AddressManager {
-    // Initialize contract with owner
+    // Initialize contract with owner (sets shared owner for auth middleware)
     pub fn init(env: Env, owner: Address) {
-        if env.storage().instance().has(&DataKey::Owner) {
+        if env.storage().instance().has(&contract_core::DataKey::Owner) {
             panic!("Already initialized");
         }
-        env.storage().instance().set(&DataKey::Owner, &owner);
+        env.storage()
+            .instance()
+            .set(&contract_core::DataKey::Owner, &owner);
     }
 
-    // Helper: check owner
+    // Helper: check owner via shared auth middleware
     fn require_owner(env: &Env) {
-        let owner: Address = env
-            .storage()
-            .instance()
-            .get(&DataKey::Owner)
-            .unwrap();
-
-        owner.require_auth();
+        contract_core::auth::require_owner(env);
     }
 
     // Helper: check address exists
@@ -69,14 +69,39 @@ impl AddressManager {
             .set(&DataKey::MasterAddress, &address);
 
         // Emit Event
-        env.events().publish(
-            (MASTER_SET,),
-            address
-        );
+        #[allow(deprecated)]
+        env.events().publish((MASTER_SET,), address);
     }
 
     // Getter
     pub fn get_master(env: Env) -> Option<Address> {
         env.storage().instance().get(&DataKey::MasterAddress)
+    }
+
+    // Add a Stellar address with a label. Owner-only. Prevents duplicates.
+    pub fn add_stellar_address(env: Env, address: Address, label: Symbol) {
+        Self::require_owner(&env);
+        if env
+            .storage()
+            .instance()
+            .has(&DataKey::StellarAddress(address.clone()))
+        {
+            panic!("Address already exists");
+        }
+        let metadata = AddressMetadata {
+            label: label.clone(),
+        };
+        env.storage()
+            .instance()
+            .set(&DataKey::StellarAddress(address.clone()), &metadata);
+        #[allow(deprecated)]
+        env.events().publish((ADDR_ADDED,), (address, label));
+    }
+
+    // Retrieve metadata for a registered Stellar address.
+    pub fn get_stellar_address(env: Env, address: Address) -> Option<AddressMetadata> {
+        env.storage()
+            .instance()
+            .get(&DataKey::StellarAddress(address))
     }
 }

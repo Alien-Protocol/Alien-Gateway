@@ -17,7 +17,7 @@ Alien Gateway is a **Stellar Naming Service ** — a decentralized, privacy-pres
 
 ---
 
-## Why SNS
+## Why gateway
 
 * Wallet addresses are long and error-prone
 * Users manage multiple wallets across chains
@@ -48,7 +48,7 @@ SNS treats **usernames as a core payment primitive**, not just metadata.
 
 ## Core Components
 
-* **SNS Registry (Soroban)**
+* **username Registry (Soroban)**
 
   * Stores commitments
   * Anchors Merkle root
