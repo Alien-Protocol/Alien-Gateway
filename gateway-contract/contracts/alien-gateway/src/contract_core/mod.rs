@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol};
+use soroban_sdk::{contracttype, symbol_short, Address, BytesN, Env, Symbol};
 
 pub mod auth;
 
@@ -11,8 +11,9 @@ pub enum DataKey {
     CreatedAt,
 }
 
-// Event
+// Events
 const INIT_EVENT: Symbol = symbol_short!("INIT");
+const TRANSFER_EVENT: Symbol = symbol_short!("TRANSFER");
 
 pub struct CoreContract;
 
@@ -58,5 +59,32 @@ impl CoreContract {
     pub fn transfer_ownership(env: Env, new_owner: Address) {
         auth::require_owner(&env);
         env.storage().instance().set(&DataKey::Owner, &new_owner);
+    }
+
+    /// Transfer the username commitment to a new owner and update the SMT root.
+    /// Only the current owner can call this function.
+    /// Emits a TRANSFER event with (username, old_owner, new_owner).
+    pub fn transfer(env: Env, new_owner: Address, new_smt_root: BytesN<32>) {
+        auth::require_owner(&env);
+
+        let old_owner: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Owner)
+            .unwrap_or_else(|| panic!("Contract not initialized"));
+
+        if old_owner == new_owner {
+            panic!("New owner must differ from current owner");
+        }
+
+        let username: Symbol = env.storage().instance().get(&DataKey::Username).unwrap();
+
+        env.storage().instance().set(&DataKey::Owner, &new_owner);
+
+        #[allow(deprecated)]
+        env.events()
+            .publish((TRANSFER_EVENT,), (username, old_owner, new_owner));
+
+        crate::smt_root::SmtRoot::update_root(env.clone(), new_smt_root);
     }
 }
