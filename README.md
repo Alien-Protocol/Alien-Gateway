@@ -108,17 +108,18 @@ cargo test
 cd zk
 npm install
 
-# Compile all circuits
-npm run compile:all
-
-# Or compile individual circuits
+# Compile working circuit
 npm run compile:hello
-npm run compile:username_hash
-npm run compile:merkle_path
-npm run compile:merkle_inclusion
-npm run compile:merkle_update
-npm run compile:username_merkle
+
+# Other circuits available (may need fixes):
+# npm run compile:username_hash
+# npm run compile:merkle_path
+# npm run compile:merkle_inclusion
+# npm run compile:merkle_update
+# npm run compile:username_merkle
 ```
+
+> **Note**: Some circuits require structural fixes (missing `component main`, include paths). The CI currently validates basic circuit compilation with `hello.circom`.
 
 ### CI/CD Pipeline
 
