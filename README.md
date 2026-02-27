@@ -5,6 +5,15 @@
 [![Checks](https://github.com/Alien-Protocol/Alien-Gateway/actions/workflows/checks.yml/badge.svg)](https://github.com/Alien-Protocol/Alien-Gateway/actions/workflows/checks.yml)
 [![ZK Circuits CI](https://github.com/Alien-Protocol/Alien-Gateway/actions/workflows/zk_circuits.yml/badge.svg)](https://github.com/Alien-Protocol/Alien-Gateway/actions/workflows/zk_circuits.yml)
 
+<p align="center">
+  <img 
+    src="alien_protocol_gif.gif" 
+    alt="Alien Protocol"
+    width="100%"
+    style="max-width:900px; border-radius:20px; box-shadow:0 0 40px rgba(0,255,170,.35);"
+  />
+</p>
+
 > **Send crypto to `@username` on Stellar**
 
 Alien Gateway is a **Stellar Naming Service ** — a decentralized, privacy-preserving username system for crypto payments on **Stellar**.
