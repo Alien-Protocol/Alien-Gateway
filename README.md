@@ -97,10 +97,28 @@ stellar contract build
 
 ### Running Contract Tests
 
+
 ```bash
 cd gateway-contract
 cargo test
 ```
+
+### End-to-End Integration Test: Register → Resolve
+
+This project includes a full integration test that simulates the complete user journey:
+
+- Generates a ZK proof off-chain (see `zk/scripts/prove_username_exists.js`)
+- Submits a registration to the Soroban contract
+- Resolves the username back to a wallet address
+
+**How to run the E2E test:**
+
+```bash
+cd gateway-contract
+cargo test --test test_register_resolve_e2e
+```
+
+This test is run automatically in CI on every PR. It is the primary health check for the system, ensuring both the ZK and contract layers work together.
 
 ### Compiling ZK Circuits
 
