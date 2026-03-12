@@ -15,7 +15,7 @@
     "compile:username_merkle": "mkdir -p build && circom circuits/username_merkle.circom --r1cs --wasm --sym -o build -l node_modules"
   },
   "keywords": [],
-  "author": "",
+  "author": "alien-protocol",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
