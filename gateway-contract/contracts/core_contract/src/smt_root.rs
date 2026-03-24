@@ -1,6 +1,7 @@
-use soroban_sdk::{contracttype, symbol_short, BytesN, Env, Symbol};
+use soroban_sdk::{contracttype, BytesN, Env};
 
 use crate::contract_core;
+use crate::events::ROOT_UPDATED;
 
 // Storage Keys
 #[contracttype]
@@ -8,9 +9,6 @@ use crate::contract_core;
 pub enum DataKey {
     SmtRoot,
 }
-
-// Event
-const ROOT_UPDATED: Symbol = symbol_short!("ROOT_UPD");
 
 pub struct SmtRoot;
 
