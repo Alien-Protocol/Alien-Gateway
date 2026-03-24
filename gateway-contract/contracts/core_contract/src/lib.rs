@@ -1,15 +1,15 @@
 #![no_std]
 
-pub mod events;
-pub mod types;
 pub mod address_manager;
+pub mod events;
 pub mod registration;
+pub mod types;
 
-use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, BytesN, Env,
-};
-use types::{ResolveData, PrivacyMode};
 use address_manager::AddressManager;
+use soroban_sdk::{
+    Address, BytesN, Env, contract, contracterror, contractimpl, contracttype, panic_with_error,
+};
+use types::{PrivacyMode, ResolveData};
 
 #[contract]
 pub struct Contract;
@@ -60,13 +60,14 @@ impl Contract {
 
         match env.storage().persistent().get::<DataKey, ResolveData>(&key) {
             Some(data) => {
-                // If Private, return shielded address (contract's own address) 
-                if AddressManager::get_privacy_mode(env.clone(), commitment) == PrivacyMode::Private {
+                // If Private, return shielded address (contract's own address)
+                if AddressManager::get_privacy_mode(env.clone(), commitment) == PrivacyMode::Private
+                {
                     (env.current_contract_address(), data.memo)
                 } else {
                     (data.wallet, data.memo)
                 }
-            },
+            }
             None => panic_with_error!(&env, ResolverError::NotFound),
         }
     }

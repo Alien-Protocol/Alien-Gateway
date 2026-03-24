@@ -15,7 +15,7 @@ pub struct ResolveData {
 
 #[contracttype]
 #[derive(Clone, PartialEq)]
-pub enum PrivacyMode { 
-    Normal, 
-    Private 
+pub enum PrivacyMode {
+    Normal,
+    Private,
 }

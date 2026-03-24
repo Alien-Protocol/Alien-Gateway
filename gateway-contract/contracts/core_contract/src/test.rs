@@ -62,7 +62,7 @@ fn test_privacy_mode_resolve_shielded() {
     // Set to Private
     env.mock_all_auths();
     client.set_privacy_mode(&commitment, &crate::types::PrivacyMode::Private);
-    
+
     // Resolve should return contract address (shielded)
     let (resolved_shielded, _) = client.resolve(&commitment);
     assert_eq!(resolved_shielded, contract_id);
