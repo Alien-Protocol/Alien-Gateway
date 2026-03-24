@@ -1,8 +1,6 @@
 use crate::registration::Registration;
 use crate::types::PrivacyMode;
-use soroban_sdk::{
-    contracterror, contractevent, contracttype, panic_with_error, BytesN, Env,
-};
+use soroban_sdk::{contracterror, contractevent, contracttype, panic_with_error, BytesN, Env};
 
 #[contracttype]
 #[derive(Clone)]

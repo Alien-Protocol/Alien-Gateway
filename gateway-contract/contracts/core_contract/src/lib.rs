@@ -61,7 +61,8 @@ impl Contract {
         match env.storage().persistent().get::<DataKey, ResolveData>(&key) {
             Some(data) => {
                 // If Private, return shielded address (contract's own address)
-                if AddressManager::get_privacy_mode(env.clone(), commitment) == PrivacyMode::Private {
+                if AddressManager::get_privacy_mode(env.clone(), commitment) == PrivacyMode::Private
+                {
                     (env.current_contract_address(), data.memo)
                 } else {
                     (data.wallet, data.memo)
