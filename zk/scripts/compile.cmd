@@ -31,6 +31,9 @@ if errorlevel 1 goto :error
 call :compile_circuit "username_merkle" "username_merkle.circom"
 if errorlevel 1 goto :error
 
+call :compile_circuit "username_hash" "username_hash.circom"
+if errorlevel 1 goto :error
+
 echo ================================================
 echo    All circuits compiled successfully!
 echo ================================================

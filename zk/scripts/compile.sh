@@ -19,6 +19,7 @@ CIRCUITS=(
   "merkle_update|merkle_update.circom"
   "merkle_update_proof|merkle/merkle_update_proof.circom"
   "username_merkle|username_merkle.circom"
+  "username_hash|username_hash.circom"
 )
 
 # ── Helpers ───────────────────────────────────
