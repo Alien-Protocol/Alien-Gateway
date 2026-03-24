@@ -1,5 +1,10 @@
 #![no_std]
 
+pub mod contract_core;
+
+#[cfg(test)]
+mod test;
+
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, Address, BytesN, Env,
 };
