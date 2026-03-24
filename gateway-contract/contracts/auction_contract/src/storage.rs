@@ -176,6 +176,21 @@ pub fn set_bid(env: &Env, hash: &BytesN<32>, bidder: &Address, bid: &Bid) {
         .extend_ttl(&key, LEDGER_THRESHOLD, LEDGER_BUMP);
 }
 
+/// Delete the [`Bid`] record for `bidder` on auction `hash`.
+///
+/// Called after a refund is issued so that the same bidder cannot be refunded
+/// twice if `refund_losers` is invoked more than once.  A no-op when the key
+/// does not exist.
+///
+/// # Arguments
+/// * `env`    — the contract environment.
+/// * `hash`   — 32-byte commitment hash of the auction.
+/// * `bidder` — address whose bid record should be removed.
+pub fn remove_bid(env: &Env, hash: &BytesN<32>, bidder: &Address) {
+    let key = DataKey::Bid(hash.clone(), bidder.clone());
+    env.storage().persistent().remove(&key);
+}
+
 // ---------------------------------------------------------------------------
 // Bidder list helpers
 // ---------------------------------------------------------------------------
