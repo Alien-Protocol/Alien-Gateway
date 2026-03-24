@@ -18,6 +18,7 @@ pub struct ClaimedEvent {
 pub struct Events;
 
 impl Events {
+    #[allow(deprecated)]
     pub fn bid_placed(env: &Env, id: u32, bidder: Address, amount: i128) {
         env.events().publish(
             (Symbol::new(env, "bid_placed"), id),
@@ -25,6 +26,7 @@ impl Events {
         );
     }
 
+    #[allow(deprecated)]
     pub fn claimed(env: &Env, id: u32, claimant: Address) {
         env.events().publish(
             (Symbol::new(env, "claimed"), id),
