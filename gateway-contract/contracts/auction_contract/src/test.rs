@@ -1,126 +1,135 @@
 #![cfg(test)]
-
 use super::*;
-use soroban_sdk::{
-    symbol_short,
-    testutils::{Address as _, Events},
-    Address, BytesN, Env, IntoVal,
-};
+use soroban_sdk::testutils::{Address as _, Ledger};
+use soroban_sdk::{Address, Env};
 
-// Dummy factory contract
-#[contract]
-pub struct DummyFactory;
-#[contractimpl]
-impl DummyFactory {
-    pub fn deploy_username(env: Env, username_hash: BytesN<32>, claimer: Address) {
-        env.events()
-            .publish((symbol_short!("deploy"), username_hash), claimer);
-    }
+fn setup_test(env: &Env) -> (AuctionContractClient<'static>, Address, Address) {
+    let contract_id = env.register(AuctionContract, ());
+    let client = AuctionContractClient::new(env, &contract_id);
+
+    let seller = Address::generate(env);
+    let token_admin = Address::generate(env);
+    let asset_id_obj = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let asset_id = asset_id_obj.address();
+
+    (client, seller, asset_id)
 }
 
 #[test]
-fn test_claim_username_success() {
+fn test_auction_full_lifecycle() {
     let env = Env::default();
     env.mock_all_auths();
+    let (client, seller, asset_id) = setup_test(&env);
+    let asset_admin = soroban_sdk::token::StellarAssetClient::new(&env, &asset_id);
+    let asset = soroban_sdk::token::Client::new(&env, &asset_id);
 
-    let contract_id = env.register_contract(None, AuctionContract);
-    let client = AuctionContractClient::new(&env, &contract_id);
+    let bidder1 = Address::generate(&env);
+    let bidder2 = Address::generate(&env);
+    asset_admin.mint(&bidder1, &1000);
+    asset_admin.mint(&bidder2, &1000);
 
-    let factory_id = env.register_contract(None, DummyFactory);
-    let claimer = Address::generate(&env);
-    let username_hash = BytesN::from_array(&env, &[0; 32]);
+    let end_time = 1000;
+    client.create_auction(&1, &seller, &asset_id, &100, &end_time);
 
-    env.as_contract(&contract_id, || {
-        storage::set_factory_contract(&env, &factory_id);
-        storage::set_highest_bidder(&env, &claimer);
-        storage::set_status(&env, types::AuctionStatus::Closed);
-    });
+    client.place_bid(&1, &bidder1, &150);
+    client.place_bid(&1, &bidder2, &200);
 
-    client.claim_username(&username_hash, &claimer);
+    assert_eq!(asset.balance(&bidder1), 1000);
+    assert_eq!(asset.balance(&client.address), 200);
 
-    let events = env.events().all();
-    assert!(events.len() > 0);
+    env.ledger().set_timestamp(end_time + 1);
+    client.close_auction(&1);
+    client.claim(&1, &bidder2);
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #1)")]
-fn test_not_winner() {
+fn test_auction_no_bids_close() {
     let env = Env::default();
     env.mock_all_auths();
-
-    let contract_id = env.register_contract(None, AuctionContract);
-    let client = AuctionContractClient::new(&env, &contract_id);
-
-    let factory_id = env.register_contract(None, DummyFactory);
-    let winner = Address::generate(&env);
-    let not_winner = Address::generate(&env);
-    let username_hash = BytesN::from_array(&env, &[0; 32]);
-
-    env.as_contract(&contract_id, || {
-        storage::set_factory_contract(&env, &factory_id);
-        storage::set_highest_bidder(&env, &winner);
-        storage::set_status(&env, types::AuctionStatus::Closed);
-    });
-    client.claim_username(&username_hash, &not_winner);
+    let (client, seller, asset_id) = setup_test(&env);
+    let end_time = 1000;
+    client.create_auction(&1, &seller, &asset_id, &100, &end_time);
+    env.ledger().set_timestamp(end_time + 1);
+    client.close_auction(&1);
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #2)")]
-fn test_already_claimed() {
+#[should_panic(expected = "Error(Contract, #2)")]
+fn test_place_bid_too_low_fails() {
     let env = Env::default();
     env.mock_all_auths();
-
-    let contract_id = env.register_contract(None, AuctionContract);
-    let client = AuctionContractClient::new(&env, &contract_id);
-
-    let factory_id = env.register_contract(None, DummyFactory);
-    let claimer = Address::generate(&env);
-    let username_hash = BytesN::from_array(&env, &[0; 32]);
-
-    env.as_contract(&contract_id, || {
-        storage::set_factory_contract(&env, &factory_id);
-        storage::set_highest_bidder(&env, &claimer);
-        storage::set_status(&env, types::AuctionStatus::Claimed);
-    });
-    client.claim_username(&username_hash, &claimer);
+    let (client, seller, asset_id) = setup_test(&env);
+    client.create_auction(&1, &seller, &asset_id, &100, &1000);
+    let bidder = Address::generate(&env);
+    client.place_bid(&1, &bidder, &50);
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #3)")]
-fn test_not_closed() {
+#[should_panic(expected = "Error(Contract, #3)")]
+fn test_place_bid_after_close_fails() {
     let env = Env::default();
     env.mock_all_auths();
-
-    let contract_id = env.register_contract(None, AuctionContract);
-    let client = AuctionContractClient::new(&env, &contract_id);
-
-    let factory_id = env.register_contract(None, DummyFactory);
-    let claimer = Address::generate(&env);
-    let username_hash = BytesN::from_array(&env, &[0; 32]);
-
-    env.as_contract(&contract_id, || {
-        storage::set_factory_contract(&env, &factory_id);
-        storage::set_highest_bidder(&env, &claimer);
-        storage::set_status(&env, types::AuctionStatus::Open);
-    });
-    client.claim_username(&username_hash, &claimer);
+    let (client, seller, asset_id) = setup_test(&env);
+    client.create_auction(&1, &seller, &asset_id, &100, &1000);
+    env.ledger().set_timestamp(1001);
+    let bidder = Address::generate(&env);
+    client.place_bid(&1, &bidder, &150);
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #4)")]
-fn test_no_factory_contract() {
+#[should_panic(expected = "Error(Contract, #4)")]
+fn test_close_auction_early_fails() {
     let env = Env::default();
     env.mock_all_auths();
+    let (client, seller, asset_id) = setup_test(&env);
+    client.create_auction(&1, &seller, &asset_id, &100, &1000);
+    env.ledger().set_timestamp(500);
+    client.close_auction(&1);
+}
 
-    let contract_id = env.register_contract(None, AuctionContract);
-    let client = AuctionContractClient::new(&env, &contract_id);
+#[test]
+#[should_panic(expected = "Error(Contract, #6)")]
+fn test_claim_not_winner_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, seller, asset_id) = setup_test(&env);
+    let asset_admin = soroban_sdk::token::StellarAssetClient::new(&env, &asset_id);
+    let bidder = Address::generate(&env);
+    let loser = Address::generate(&env);
+    asset_admin.mint(&bidder, &200);
 
-    let claimer = Address::generate(&env);
-    let username_hash = BytesN::from_array(&env, &[0; 32]);
+    client.create_auction(&1, &seller, &asset_id, &100, &1000);
+    client.place_bid(&1, &bidder, &150);
+    env.ledger().set_timestamp(1001);
+    client.close_auction(&1);
+    client.claim(&1, &loser);
+}
 
-    env.as_contract(&contract_id, || {
-        storage::set_highest_bidder(&env, &claimer);
-        storage::set_status(&env, types::AuctionStatus::Closed);
-    });
-    client.claim_username(&username_hash, &claimer);
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_create_duplicate_auction_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, seller, asset_id) = setup_test(&env);
+    client.create_auction(&1, &seller, &asset_id, &100, &1000);
+    client.create_auction(&1, &seller, &asset_id, &200, &2000);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #7)")]
+fn test_claim_twice_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, seller, asset_id) = setup_test(&env);
+    let asset_admin = soroban_sdk::token::StellarAssetClient::new(&env, &asset_id);
+    let bidder = Address::generate(&env);
+    asset_admin.mint(&bidder, &200);
+
+    client.create_auction(&1, &seller, &asset_id, &100, &1000);
+    client.place_bid(&1, &bidder, &150);
+    env.ledger().set_timestamp(1001);
+    client.close_auction(&1);
+
+    client.claim(&1, &bidder);
+    client.claim(&1, &bidder);
 }

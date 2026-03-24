@@ -1,33 +1,23 @@
-use crate::types::{AuctionStatus, DataKey};
-use soroban_sdk::{Address, Env};
+use crate::types::Auction;
+use soroban_sdk::{Env, Symbol};
 
-pub fn get_status(env: &Env) -> AuctionStatus {
-    env.storage()
-        .instance()
-        .get(&DataKey::Status)
-        .unwrap_or(AuctionStatus::Open)
-}
+pub struct Storage;
 
-pub fn set_status(env: &Env, status: AuctionStatus) {
-    env.storage().instance().set(&DataKey::Status, &status);
-}
+impl Storage {
+    pub fn set_auction(env: &Env, _id: u32, auction: &Auction) {
+        env.storage()
+            .instance()
+            .set(&Symbol::new(env, "auction"), auction);
+    }
 
-pub fn get_highest_bidder(env: &Env) -> Option<Address> {
-    env.storage().instance().get(&DataKey::HighestBidder)
-}
+    pub fn get_auction(env: &Env, __id: u32) -> Auction {
+        env.storage()
+            .instance()
+            .get(&Symbol::new(env, "auction"))
+            .unwrap()
+    }
 
-pub fn set_highest_bidder(env: &Env, bidder: &Address) {
-    env.storage()
-        .instance()
-        .set(&DataKey::HighestBidder, bidder);
-}
-
-pub fn get_factory_contract(env: &Env) -> Option<Address> {
-    env.storage().instance().get(&DataKey::FactoryContract)
-}
-
-pub fn set_factory_contract(env: &Env, factory: &Address) {
-    env.storage()
-        .instance()
-        .set(&DataKey::FactoryContract, factory);
+    pub fn has_auction(env: &Env, __id: u32) -> bool {
+        env.storage().instance().has(&Symbol::new(env, "auction"))
+    }
 }

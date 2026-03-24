@@ -1,17 +1,20 @@
-use soroban_sdk::contracttype;
+use soroban_sdk::{contracttype, Address};
 
+#[derive(Clone, PartialEq, Debug)]
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AuctionStatus {
     Open,
     Closed,
-    Claimed,
 }
 
+#[derive(Clone, Debug)]
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum DataKey {
-    Status,
-    HighestBidder,
-    FactoryContract,
+pub struct Auction {
+    pub seller: Address,
+    pub asset: Address,
+    pub min_bid: i128,
+    pub end_time: u64,
+    pub highest_bidder: Option<Address>,
+    pub highest_bid: i128,
+    pub status: AuctionStatus,
 }

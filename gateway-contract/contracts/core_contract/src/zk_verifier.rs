@@ -1,6 +1,10 @@
 #![allow(dead_code)]
 use soroban_sdk::Env;
 
+// Type aliases to satisfy clippy::type_complexity
+type G1Point = ([u8; 32], [u8; 32]);
+type G2Point = (([u8; 32], [u8; 32]), ([u8; 32], [u8; 32]));
+
 // ---------------------------------------------------------------------------
 // Groth16 BN254 verification key (test/stub values — replace with real ceremony output)
 // ---------------------------------------------------------------------------
@@ -18,7 +22,7 @@ const VK_ALPHA_G1: ([u8; 32], [u8; 32]) = (
 );
 
 // G2 point: ((x0,x1),(y0,y1)) — BN254 G2 uses Fp2 elements
-const VK_BETA_G2: (([u8; 32], [u8; 32]), ([u8; 32], [u8; 32])) = (
+const VK_BETA_G2: G2Point = (
     (
         [0x2a, 0x3b, 0x4c, 0x5d, 0x6e, 0x7f, 0x80, 0x91,
          0xa2, 0xb3, 0xc4, 0xd5, 0xe6, 0xf7, 0x08, 0x19,
@@ -41,8 +45,8 @@ const VK_BETA_G2: (([u8; 32], [u8; 32]), ([u8; 32], [u8; 32])) = (
     ),
 );
 
-const VK_GAMMA_G2: (([u8; 32], [u8; 32]), ([u8; 32], [u8; 32])) = VK_BETA_G2;
-const VK_DELTA_G2: (([u8; 32], [u8; 32]), ([u8; 32], [u8; 32])) = VK_BETA_G2;
+const VK_GAMMA_G2: G2Point = VK_BETA_G2;
+const VK_DELTA_G2: G2Point = VK_BETA_G2;
 
 // IC[0] and IC[1] — one public input expected (the username commitment)
 const VK_IC_0: ([u8; 32], [u8; 32]) = VK_ALPHA_G1;
@@ -112,9 +116,9 @@ fn validate_g1(x: &[u8; 32], _y: &[u8; 32]) -> bool {
 /// Replace the body of `pairing_check` with a host-function call when
 /// Soroban exposes BN254 pairings.
 pub fn groth16_verify(
-    proof_a: ([u8; 32], [u8; 32]),
-    proof_b: (([u8; 32], [u8; 32]), ([u8; 32], [u8; 32])),
-    proof_c: ([u8; 32], [u8; 32]),
+    proof_a: G1Point,
+    proof_b: G2Point,
+    proof_c: G1Point,
     public_inputs: &[[u8; 32]],
 ) -> bool {
     // 1. Validate proof points are non-zero

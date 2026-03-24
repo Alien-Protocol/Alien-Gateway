@@ -1,11 +1,13 @@
 use soroban_sdk::contracterror;
 
 #[contracterror]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[repr(u32)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 pub enum Error {
-    NotWinner = 1,
-    AlreadyClaimed = 2,
-    NotClosed = 3,
-    NoFactoryContract = 4,
+    AlreadyExists = 1,
+    BidTooLow = 2,
+    AuctionClosed = 3,
+    AuctionNotEnded = 4,
+    AuctionNotClosed = 5,
+    NotWinner = 6,
+    AlreadyClaimed = 7,
 }
