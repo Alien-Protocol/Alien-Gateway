@@ -20,4 +20,6 @@ pub enum EscrowError {
     PaymentAlreadyExecuted = 8,
     /// The scheduled payment is not yet due for execution.
     PaymentNotYetDue = 9,
+    /// The vault is inactive and cannot process new payments.
+    VaultInactive = 10,
 }

@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use crate::errors::EscrowError;
-use crate::types::{DataKey, ScheduledPayment, VaultState};
+use crate::types::{DataKey, ScheduledPayment, VaultConfig, VaultState};
 use crate::EscrowContract;
 use crate::EscrowContractClient;
 use soroban_sdk::testutils::{Address as _, Events as _, Ledger};
@@ -38,15 +38,22 @@ fn create_vault(
     token: &Address,
     balance: i128,
 ) {
-    let vault = VaultState {
-        owner: owner.clone(),
-        token: token.clone(),
+    let config = VaultConfig {
+        owner:      owner.clone(),
+        token:      token.clone(),
+        created_at: 0,
+    };
+    let state = VaultState {
         balance,
+        is_active: true,
     };
     env.as_contract(contract_id, || {
         env.storage()
             .persistent()
-            .set(&DataKey::Vault(id.clone()), &vault);
+            .set(&DataKey::VaultConfig(id.clone()), &config);
+        env.storage()
+            .persistent()
+            .set(&DataKey::VaultState(id.clone()), &state);
     });
 }
 
@@ -75,12 +82,12 @@ fn test_schedule_payment_success() {
 
     // Verify balance decremented
     env.as_contract(&contract_id, || {
-        let vault: VaultState = env
+        let state: VaultState = env
             .storage()
             .persistent()
-            .get(&DataKey::Vault(from.clone()))
+            .get(&DataKey::VaultState(from.clone()))
             .unwrap();
-        assert_eq!(vault.balance, initial_balance - amount);
+        assert_eq!(state.balance, initial_balance - amount);
 
         // Verify ScheduledPayment stored correctly
         let payment: ScheduledPayment = env

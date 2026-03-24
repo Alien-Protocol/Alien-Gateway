@@ -1,19 +1,33 @@
 use crate::errors::EscrowError;
-use crate::types::{DataKey, ScheduledPayment, VaultState};
+use crate::types::{DataKey, ScheduledPayment, VaultConfig, VaultState};
 use soroban_sdk::{BytesN, Env};
 
-/// Reads a vault's state from persistent storage.
-pub fn read_vault(env: &Env, from: &BytesN<32>) -> Option<VaultState> {
+/// Reads a vault's immutable configuration from persistent storage.
+pub fn read_vault_config(env: &Env, commitment: &BytesN<32>) -> Option<VaultConfig> {
     env.storage()
         .persistent()
-        .get(&DataKey::Vault(from.clone()))
+        .get(&DataKey::VaultConfig(commitment.clone()))
 }
 
-/// Writes a vault's state to persistent storage.
-pub fn write_vault(env: &Env, from: &BytesN<32>, vault: &VaultState) {
+/// Writes a vault's immutable configuration to persistent storage.
+pub fn write_vault_config(env: &Env, commitment: &BytesN<32>, config: &VaultConfig) {
     env.storage()
         .persistent()
-        .set(&DataKey::Vault(from.clone()), vault);
+        .set(&DataKey::VaultConfig(commitment.clone()), config);
+}
+
+/// Reads a vault's mutable state from persistent storage.
+pub fn read_vault_state(env: &Env, commitment: &BytesN<32>) -> Option<VaultState> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::VaultState(commitment.clone()))
+}
+
+/// Writes a vault's mutable state to persistent storage.
+pub fn write_vault_state(env: &Env, commitment: &BytesN<32>, state: &VaultState) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::VaultState(commitment.clone()), state);
 }
 
 /// Increments the global payment counter and returns the previous ID.
