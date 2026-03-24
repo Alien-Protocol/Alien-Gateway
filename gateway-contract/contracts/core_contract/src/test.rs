@@ -1,9 +1,11 @@
 #![cfg(test)]
-use crate::Contract;
-use crate::ContractClient;
-use soroban_sdk::{Bytes, BytesN, Env, Vec};
 
-// Helper: build a valid 256-byte proof (non-zero A and C points)
+use crate::{Contract, ContractClient};
+use soroban_sdk::testutils::Address as _;
+use soroban_sdk::{Address, Bytes, BytesN, Env, Vec};
+
+// --- Helpers for ZK Tests ---
+
 fn valid_proof(env: &Env) -> Bytes {
     let mut buf = [0u8; 256];
     // A.x — non-zero
@@ -18,18 +20,29 @@ fn valid_proof(env: &Env) -> Bytes {
     Bytes::from_slice(env, &buf)
 }
 
-// Helper: build a valid 32-byte public input (below BN254 prime)
 fn valid_input(env: &Env) -> BytesN<32> {
     let mut inp = [0u8; 32];
     inp[31] = 0x01; // scalar = 1, well below field prime
     BytesN::from_array(env, &inp)
 }
 
+// --- Helpers for Resolver Tests ---
+
+fn setup_test(env: &Env) -> (ContractClient<'_>, BytesN<32>, Address) {
+    let contract_id = env.register(Contract, ());
+    let client = ContractClient::new(env, &contract_id);
+    let commitment = BytesN::from_array(env, &[7u8; 32]);
+    let wallet = Address::generate(env);
+
+    (client, commitment, wallet)
+}
+
+// --- ZK Proof Verifier Tests ---
+
 #[test]
 fn test_verify_proof_valid() {
     let env = Env::default();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
+    let (client, _, _) = setup_test(&env); // Use helper for registration
 
     let proof = valid_proof(&env);
     let mut inputs: Vec<BytesN<32>> = Vec::new(&env);
@@ -43,10 +56,8 @@ fn test_verify_proof_valid() {
 #[should_panic]
 fn test_verify_proof_wrong_length() {
     let env = Env::default();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
+    let (client, _, _) = setup_test(&env);
 
-    // Only 64 bytes — should panic with InvalidProofLength
     let short_proof = Bytes::from_slice(&env, &[0u8; 64]);
     let mut inputs: Vec<BytesN<32>> = Vec::new(&env);
     inputs.push_back(valid_input(&env));
@@ -58,10 +69,8 @@ fn test_verify_proof_wrong_length() {
 #[should_panic]
 fn test_verify_proof_zero_a_point() {
     let env = Env::default();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
+    let (client, _, _) = setup_test(&env);
 
-    // All-zero proof — A.x is zero so G1 validation fails → InvalidProof
     let bad_proof = Bytes::from_slice(&env, &[0u8; 256]);
     let mut inputs: Vec<BytesN<32>> = Vec::new(&env);
     inputs.push_back(valid_input(&env));
@@ -73,11 +82,10 @@ fn test_verify_proof_zero_a_point() {
 #[should_panic]
 fn test_verify_proof_no_public_inputs() {
     let env = Env::default();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
+    let (client, _, _) = setup_test(&env);
 
     let proof = valid_proof(&env);
-    let inputs: Vec<BytesN<32>> = Vec::new(&env); // empty — wrong count
+    let inputs: Vec<BytesN<32>> = Vec::new(&env);
 
     client.verify_proof(&proof, &inputs);
 }
@@ -86,14 +94,39 @@ fn test_verify_proof_no_public_inputs() {
 #[should_panic]
 fn test_verify_proof_input_not_in_field() {
     let env = Env::default();
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(&env, &contract_id);
+    let (client, _, _) = setup_test(&env);
 
     let proof = valid_proof(&env);
-    // Input larger than BN254 prime (all 0xFF bytes)
     let bad_input = BytesN::from_array(&env, &[0xffu8; 32]);
     let mut inputs: Vec<BytesN<32>> = Vec::new(&env);
     inputs.push_back(bad_input);
 
     client.verify_proof(&proof, &inputs);
+}
+
+// --- Resolver Logic Tests ---
+
+#[test]
+fn test_resolve_returns_none_when_no_memo() {
+    let env = Env::default();
+    let (client, commitment, wallet) = setup_test(&env);
+
+    client.register_resolver(&commitment, &wallet, &None);
+
+    let (resolved_wallet, memo) = client.resolve(&commitment);
+    assert_eq!(resolved_wallet, wallet);
+    assert_eq!(memo, None);
+}
+
+#[test]
+fn test_set_memo_and_resolve_flow() {
+    let env = Env::default();
+    let (client, commitment, wallet) = setup_test(&env);
+
+    client.register_resolver(&commitment, &wallet, &None);
+    client.set_memo(&commitment, &4242u64);
+
+    let (resolved_wallet, memo) = client.resolve(&commitment);
+    assert_eq!(resolved_wallet, wallet);
+    assert_eq!(memo, Some(4242u64));
 }

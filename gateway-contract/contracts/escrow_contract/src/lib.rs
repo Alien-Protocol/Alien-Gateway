@@ -14,8 +14,8 @@ mod test;
 use crate::errors::EscrowError;
 use crate::events::Events;
 use crate::storage::{increment_payment_id, read_vault, write_scheduled_payment, write_vault};
-use crate::types::ScheduledPayment;
-use soroban_sdk::{contract, contractimpl, BytesN, Env};
+use crate::types::{DataKey, ScheduledPayment};
+use soroban_sdk::{contract, contractimpl, panic_with_error, token, Address, BytesN, Env};
 
 #[contract]
 pub struct EscrowContract;
@@ -100,4 +100,36 @@ impl EscrowContract {
 
         Ok(payment_id)
     }
+
+    pub fn execute_scheduled(env: Env, payment_id: u32) {
+        let key = DataKey::ScheduledPayment(payment_id);
+        let mut payment: ScheduledPayment = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::PaymentNotFound));
+
+        if payment.executed {
+            panic_with_error!(&env, EscrowError::PaymentAlreadyExecuted);
+        }
+
+        if env.ledger().timestamp() < payment.release_at {
+            panic_with_error!(&env, EscrowError::PaymentNotYetDue);
+        }
+
+        let recipient = resolve(&env, &payment.to);
+        let token_client = token::Client::new(&env, &payment.token);
+        token_client.transfer(&env.current_contract_address(), &recipient, &payment.amount);
+
+        payment.executed = true;
+        write_scheduled_payment(&env, payment_id, &payment);
+
+        Events::pay_exec(&env, payment_id, payment.from, payment.to, payment.amount);
+    }
+}
+
+fn resolve(env: &Env, commitment: &BytesN<32>) -> Address {
+    let vault = read_vault(env, commitment)
+        .unwrap_or_else(|| panic_with_error!(env, EscrowError::VaultNotFound));
+    vault.owner
 }
