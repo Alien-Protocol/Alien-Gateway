@@ -50,7 +50,7 @@ echo.
 
 :: ── Phase 2: Per-circuit setup ────────────────
 
-for %%C in (merkle_inclusion merkle_update merkle_update_proof username_merkle) do (
+for %%C in (merkle_inclusion merkle_update merkle_update_proof username_merkle username_hash) do (
   echo ^> Phase 2 -- %%C
 
   set R1CS=%BUILD_DIR%\%%C\%%C.r1cs

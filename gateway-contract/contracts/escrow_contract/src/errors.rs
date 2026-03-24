@@ -14,4 +14,10 @@ pub enum EscrowError {
     VaultNotFound = 5,
     /// The payment counter has reached its maximum value (u32::MAX), preventing new IDs.
     PaymentCounterOverflow = 6,
+    /// The specified scheduled payment was not found.
+    PaymentNotFound = 7,
+    /// The scheduled payment has already been executed.
+    PaymentAlreadyExecuted = 8,
+    /// The scheduled payment is not yet due for execution.
+    PaymentNotYetDue = 9,
 }
