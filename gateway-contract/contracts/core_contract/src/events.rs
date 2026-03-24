@@ -14,3 +14,4 @@ pub const VAULT_CREATE: Symbol = symbol_short!("VAULT_CRT");
 pub const DEPOSIT: Symbol = symbol_short!("DEPOSIT");
 pub const WITHDRAW: Symbol = symbol_short!("WITHDRAW");
 pub const SCHED_PAY: Symbol = symbol_short!("SCHED_PAY");
+pub const PRIV_SET: Symbol = symbol_short!("PRIV_SET");
