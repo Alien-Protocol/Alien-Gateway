@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use super::*;
+use crate::zk_verifiers::Groth16Proof;
 use soroban_sdk::{testutils::Address as _, vec, Address, BytesN, Env};
 
 fn create_test_proof(env: &Env) -> Groth16Proof {
@@ -14,7 +15,7 @@ fn create_test_proof(env: &Env) -> Groth16Proof {
 #[test]
 fn test_registration_success() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, Contract);
+    let contract_id = env.register(Contract, ());
     let client = ContractClient::new(&env, &contract_id);
 
     let wallet = Address::generate(&env);
@@ -30,13 +31,12 @@ fn test_registration_success() {
 #[should_panic(expected = "HostError: Error(Contract, #2)")]
 fn test_registration_invalid_proof() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, Contract);
+    let contract_id = env.register(Contract, ());
     let client = ContractClient::new(&env, &contract_id);
 
     let wallet = Address::generate(&env);
     let commitment = BytesN::from_array(&env, &[1; 32]);
 
-    // Create an invalid proof (empty vectors)
     let invalid_proof = Groth16Proof {
         pi_a: vec![&env],
         pi_b: vec![&env],
