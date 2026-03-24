@@ -1,6 +1,8 @@
-use soroban_sdk::{contractevent, contracttype, Address, BytesN, Env};
-use crate::types::PrivacyMode;
 use crate::registration::Registration;
+use crate::types::PrivacyMode;
+use soroban_sdk::{
+    contracterror, contractevent, contracttype, panic_with_error, BytesN, Env,
+};
 
 #[contracttype]
 #[derive(Clone)]
@@ -15,6 +17,12 @@ pub struct PrivSet {
     pub mode: u32,
 }
 
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum AddressManagerError {
+    UsernameNotRegistered = 1,
+}
+
 pub struct AddressManager;
 
 impl AddressManager {
@@ -23,8 +31,8 @@ impl AddressManager {
     pub fn set_privacy_mode(env: Env, username_hash: BytesN<32>, mode: PrivacyMode) {
         // Retrieve the owner of the username hash
         let owner = Registration::get_owner(env.clone(), username_hash.clone())
-            .expect("Username not registered");
-        
+            .unwrap_or_else(|| panic_with_error!(&env, AddressManagerError::UsernameNotRegistered));
+
         // Ensure the caller is the owner
         owner.require_auth();
 
@@ -32,12 +40,16 @@ impl AddressManager {
         let key = DataKey::Privacy(username_hash.clone());
         env.storage().persistent().set(&key, &mode);
 
-        // Emit typed PrivSet event (more robust than deprecated publish tuple)
+        // Emit typed PrivSet event (using structured publish method)
         let mode_val: u32 = match mode {
             PrivacyMode::Normal => 0,
             PrivacyMode::Private => 1,
         };
-        env.events().publish((), PrivSet { username_hash, mode: mode_val });
+        PrivSet {
+            username_hash,
+            mode: mode_val,
+        }
+        .publish(&env);
     }
 
     /// Get privacy mode for a username hash.
