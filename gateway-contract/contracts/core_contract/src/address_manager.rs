@@ -1,12 +1,18 @@
-use soroban_sdk::{contracttype, Address, BytesN, Env, Symbol};
+use soroban_sdk::{contractevent, contracttype, Address, BytesN, Env};
 use crate::types::PrivacyMode;
 use crate::registration::Registration;
-use crate::events::PRIV_SET;
 
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
     Privacy(BytesN<32>),
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PrivSet {
+    pub username_hash: BytesN<32>,
+    pub mode: u32,
 }
 
 pub struct AddressManager;
@@ -26,12 +32,12 @@ impl AddressManager {
         let key = DataKey::Privacy(username_hash.clone());
         env.storage().persistent().set(&key, &mode);
 
-        // Emit PRIV_SET event
+        // Emit typed PrivSet event (more robust than deprecated publish tuple)
         let mode_val: u32 = match mode {
             PrivacyMode::Normal => 0,
             PrivacyMode::Private => 1,
         };
-        env.events().publish((PRIV_SET,), (username_hash, mode_val));
+        env.events().publish((), PrivSet { username_hash, mode: mode_val });
     }
 
     /// Get privacy mode for a username hash.

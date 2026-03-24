@@ -4,9 +4,6 @@ pub mod events;
 pub mod types;
 pub mod address_manager;
 pub mod registration;
-pub mod smt_root;
-pub mod storage;
-pub mod errors;
 
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, panic_with_error, Address, BytesN, Env,
