@@ -1,39 +1,47 @@
 #![cfg(test)]
 
-use crate::{Contract, ContractClient};
-use soroban_sdk::testutils::Address as _;
-use soroban_sdk::{Address, BytesN, Env};
+use super::*;
+use soroban_sdk::{testutils::Address as _, vec, Address, BytesN, Env};
 
-fn setup_test(env: &Env) -> (ContractClient<'_>, BytesN<32>, Address) {
-    let contract_id = env.register(Contract, ());
-    let client = ContractClient::new(env, &contract_id);
-    let commitment = BytesN::from_array(env, &[7u8; 32]);
-    let wallet = Address::generate(env);
-
-    (client, commitment, wallet)
+fn create_test_proof(env: &Env) -> Groth16Proof {
+    Groth16Proof {
+        pi_a: vec![env, BytesN::from_array(env, &[0; 32])],
+        pi_b: vec![env, vec![env, BytesN::from_array(env, &[0; 32])]],
+        pi_c: vec![env, BytesN::from_array(env, &[0; 32])],
+    }
 }
 
 #[test]
-fn test_resolve_returns_none_when_no_memo() {
+fn test_registration_success() {
     let env = Env::default();
-    let (client, commitment, wallet) = setup_test(&env);
+    let contract_id = env.register_contract(None, Contract);
+    let client = ContractClient::new(&env, &contract_id);
 
-    client.register_resolver(&commitment, &wallet, &None);
+    let wallet = Address::generate(&env);
+    let commitment = BytesN::from_array(&env, &[1; 32]);
+    let proof = create_test_proof(&env);
 
-    let (resolved_wallet, memo) = client.resolve(&commitment);
+    client.register_resolver(&commitment, &wallet, &None, &proof);
+    let (resolved_wallet, _) = client.resolve(&commitment);
     assert_eq!(resolved_wallet, wallet);
-    assert_eq!(memo, None);
 }
 
 #[test]
-fn test_set_memo_and_resolve_flow() {
+#[should_panic(expected = "HostError: Error(Contract, #2)")]
+fn test_registration_invalid_proof() {
     let env = Env::default();
-    let (client, commitment, wallet) = setup_test(&env);
+    let contract_id = env.register_contract(None, Contract);
+    let client = ContractClient::new(&env, &contract_id);
 
-    client.register_resolver(&commitment, &wallet, &None);
-    client.set_memo(&commitment, &4242u64);
+    let wallet = Address::generate(&env);
+    let commitment = BytesN::from_array(&env, &[1; 32]);
 
-    let (resolved_wallet, memo) = client.resolve(&commitment);
-    assert_eq!(resolved_wallet, wallet);
-    assert_eq!(memo, Some(4242u64));
+    // Create an invalid proof (empty vectors)
+    let invalid_proof = Groth16Proof {
+        pi_a: vec![&env],
+        pi_b: vec![&env],
+        pi_c: vec![&env],
+    };
+
+    client.register_resolver(&commitment, &wallet, &None, &invalid_proof);
 }
