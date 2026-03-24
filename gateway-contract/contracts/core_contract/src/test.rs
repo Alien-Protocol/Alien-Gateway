@@ -1,7 +1,7 @@
 #![cfg(test)]
-use soroban_sdk::{Bytes, BytesN, Env, Vec};
 use crate::Contract;
 use crate::ContractClient;
+use soroban_sdk::{Bytes, BytesN, Env, Vec};
 
 // Helper: build a valid 256-byte proof (non-zero A and C points)
 fn valid_proof(env: &Env) -> Bytes {

@@ -3,8 +3,8 @@ pub mod events;
 pub mod zk_verifier;
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, panic_with_error,
-    Address, Bytes, BytesN, Env, Vec,
+    contract, contracterror, contractimpl, contracttype, panic_with_error, Address, Bytes, BytesN,
+    Env, Vec,
 };
 
 #[contract]
@@ -40,11 +40,7 @@ impl Contract {
     /// * `public_inputs` – Vec of 32-byte big-endian field elements (one per circuit input).
     ///
     /// Returns `true` on success; panics with `InvalidProof` on failure.
-    pub fn verify_proof(
-        env: Env,
-        proof: Bytes,
-        public_inputs: Vec<BytesN<32>>,
-    ) -> bool {
+    pub fn verify_proof(env: Env, proof: Bytes, public_inputs: Vec<BytesN<32>>) -> bool {
         // Length guard
         if proof.len() != 256 {
             panic_with_error!(&env, ResolverError::InvalidProofLength);
@@ -74,12 +70,7 @@ impl Contract {
         true
     }
 
-    pub fn register_resolver(
-        env: Env,
-        commitment: BytesN<32>,
-        wallet: Address,
-        memo: Option<u64>,
-    ) {
+    pub fn register_resolver(env: Env, commitment: BytesN<32>, wallet: Address, memo: Option<u64>) {
         let key = DataKey::Resolver(commitment);
         let data = ResolveData { wallet, memo };
         env.storage().persistent().set(&key, &data);
