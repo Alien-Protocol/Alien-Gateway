@@ -24,10 +24,9 @@ jobs:
 
       - name: Install Circom
         run: |
-          git clone https://github.com/iden3/circom.git
-          cd circom
-          cargo build --release
-          cargo install --path circom
+          wget https://github.com/iden3/circom/releases/download/v2.1.6/circom-linux-amd64
+          chmod +x circom-linux-amd64
+          sudo mv circom-linux-amd64 /usr/local/bin/circom
 
       - name: Install ZK Dependencies
         working-directory: ./zk
@@ -36,8 +35,9 @@ jobs:
       - name: Compile Circuits
         working-directory: ./zk
         run: |
+          export PATH="./node_modules/.bin:$PATH"
           ./scripts/compile.sh
-          ./scripts/trusted-setup.sh || echo "Trusted setup skipped or passed"
+          ./scripts/trusted-setup.sh
 
       - name: Run ZK E2E Tests
         working-directory: ./zk

@@ -7,4 +7,5 @@ pub enum Error {
     NotWinner = 1,
     AlreadyClaimed = 2,
     NotClosed = 3,
+    NoFactoryContract = 4,
 }

@@ -36,24 +36,20 @@ impl AuctionContract {
         storage::set_status(&env, types::AuctionStatus::Claimed);
 
         // Call factory_contract.deploy_username(username_hash, claimer)
-        if let Some(factory) = storage::get_factory_contract(&env) {
-            env.invoke_contract::<()>(
-                &factory,
-                &Symbol::new(&env, "deploy_username"),
-                vec![&env, username_hash.into_val(&env), claimer.into_val(&env)],
-            );
+        let factory = storage::get_factory_contract(&env);
+        if factory.is_none() {
+            return Err(crate::errors::Error::NoFactoryContract);
         }
+
+        env.invoke_contract::<()>(
+            &factory.unwrap(),
+            &Symbol::new(&env, "deploy_username"),
+            vec![&env, username_hash.into_val(&env), claimer.into_val(&env)],
+        );
 
         // Emit USERNAME_CLAIMED event
         events::emit_username_claimed(&env, &username_hash, &claimer);
 
         Ok(())
-    }
-
-    // Helper functions added for testing/setup
-    pub fn init_for_test(env: Env, factory: Address, highest_bidder: Address, status: types::AuctionStatus) {
-        storage::set_factory_contract(&env, &factory);
-        storage::set_highest_bidder(&env, &highest_bidder);
-        storage::set_status(&env, status);
     }
 }

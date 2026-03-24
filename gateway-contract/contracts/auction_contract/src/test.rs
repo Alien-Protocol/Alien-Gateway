@@ -9,7 +9,6 @@ pub struct DummyFactory;
 #[contractimpl]
 impl DummyFactory {
     pub fn deploy_username(env: Env, username_hash: BytesN<32>, claimer: Address) {
-        // Just emit an event to prove it was called
         env.events().publish((symbol_short!("deploy"), username_hash), claimer);
     }
 }
@@ -26,7 +25,11 @@ fn test_claim_username_success() {
     let claimer = Address::generate(&env);
     let username_hash = BytesN::from_array(&env, &[0; 32]);
 
-    client.init_for_test(&factory_id, &claimer, &types::AuctionStatus::Closed);
+    env.as_contract(&contract_id, || {
+        storage::set_factory_contract(&env, &factory_id);
+        storage::set_highest_bidder(&env, &claimer);
+        storage::set_status(&env, types::AuctionStatus::Closed);
+    });
 
     client.claim_username(&username_hash, &claimer);
 
@@ -48,7 +51,11 @@ fn test_not_winner() {
     let not_winner = Address::generate(&env);
     let username_hash = BytesN::from_array(&env, &[0; 32]);
 
-    client.init_for_test(&factory_id, &winner, &types::AuctionStatus::Closed);
+    env.as_contract(&contract_id, || {
+        storage::set_factory_contract(&env, &factory_id);
+        storage::set_highest_bidder(&env, &winner);
+        storage::set_status(&env, types::AuctionStatus::Closed);
+    });
     client.claim_username(&username_hash, &not_winner);
 }
 
@@ -65,7 +72,11 @@ fn test_already_claimed() {
     let claimer = Address::generate(&env);
     let username_hash = BytesN::from_array(&env, &[0; 32]);
 
-    client.init_for_test(&factory_id, &claimer, &types::AuctionStatus::Claimed);
+    env.as_contract(&contract_id, || {
+        storage::set_factory_contract(&env, &factory_id);
+        storage::set_highest_bidder(&env, &claimer);
+        storage::set_status(&env, types::AuctionStatus::Claimed);
+    });
     client.claim_username(&username_hash, &claimer);
 }
 
@@ -82,6 +93,29 @@ fn test_not_closed() {
     let claimer = Address::generate(&env);
     let username_hash = BytesN::from_array(&env, &[0; 32]);
 
-    client.init_for_test(&factory_id, &claimer, &types::AuctionStatus::Open);
+    env.as_contract(&contract_id, || {
+        storage::set_factory_contract(&env, &factory_id);
+        storage::set_highest_bidder(&env, &claimer);
+        storage::set_status(&env, types::AuctionStatus::Open);
+    });
+    client.claim_username(&username_hash, &claimer);
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #4)")]
+fn test_no_factory_contract() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let contract_id = env.register_contract(None, AuctionContract);
+    let client = AuctionContractClient::new(&env, &contract_id);
+
+    let claimer = Address::generate(&env);
+    let username_hash = BytesN::from_array(&env, &[0; 32]);
+
+    env.as_contract(&contract_id, || {
+        storage::set_highest_bidder(&env, &claimer);
+        storage::set_status(&env, types::AuctionStatus::Closed);
+    });
     client.claim_username(&username_hash, &claimer);
 }
