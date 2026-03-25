@@ -8,3 +8,10 @@ pub struct UsernameRecord {
     pub registered_at: u64,
     pub core_contract: Address,
 }
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DeployConfig {
+    pub core_contract_wasm_hash: BytesN<32>,
+    pub admin: Address,
+}
