@@ -31,11 +31,13 @@ impl EscrowContract {
     /// Initializes the contract by storing the Registration contract address.
     ///
     /// ### Arguments
+    /// - `admin`: The address that must authorize this initialization.
     /// - `registration_contract`: The address of the deployed Registration contract.
     ///
     /// ### Errors
     /// - `AlreadyInitialized`: If the Registration contract address is already set.
-    pub fn initialize(env: Env, registration_contract: Address) {
+    pub fn initialize(env: Env, admin: Address, registration_contract: Address) {
+        admin.require_auth();
         if read_registration_contract(&env).is_some() {
             panic_with_error!(&env, EscrowError::AlreadyInitialized);
         }

@@ -113,6 +113,7 @@ impl Events {
 
     /// Emits a VAULT_CRT event with topics (symbol!("VAULT_CRT"), commitment)
     /// and data (token, owner), exactly as specified in Issue #71.
+    #[allow(deprecated)]
     pub fn vault_crt(env: &Env, commitment: BytesN<32>, token: Address, owner: Address) {
         env.events()
             .publish((symbol_short!("VAULT_CRT"), commitment), (token, owner));

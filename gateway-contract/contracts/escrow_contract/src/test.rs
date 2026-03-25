@@ -333,7 +333,8 @@ fn setup_with_registration<'a>(
 
     let escrow_id = env.register(EscrowContract, ());
     let client = EscrowContractClient::new(env, &escrow_id);
-    client.initialize(&reg_id);
+    let admin = Address::generate(env);
+    client.initialize(&admin, &reg_id);
 
     (client, escrow_id, owner, token, commitment)
 }
@@ -410,8 +411,15 @@ fn test_create_vault_not_owner() {
 
     let escrow_id = env.register(EscrowContract, ());
     let client = EscrowContractClient::new(&env, &escrow_id);
-    // initialize has no require_auth either.
-    client.initialize(&reg_id);
+
+    // Write the registration address directly into instance storage so we
+    // skip initialize (which now requires admin.require_auth()) and keep this
+    // test entirely auth-free — proving create_vault itself enforces the check.
+    env.as_contract(&escrow_id, || {
+        env.storage()
+            .instance()
+            .set(&DataKey::RegistrationContract, &reg_id);
+    });
 
     // create_vault calls owner.require_auth() → panics because no auth is mocked.
     client.create_vault(&commitment, &token);
