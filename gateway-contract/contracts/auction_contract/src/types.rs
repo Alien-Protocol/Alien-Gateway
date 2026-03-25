@@ -14,4 +14,6 @@ pub enum DataKey {
     Status,
     HighestBidder,
     FactoryContract,
+    EndTime,
+    HighestBid,
 }
