@@ -29,6 +29,10 @@ fn username_hash(env: &Env) -> BytesN<32> {
     BytesN::from_array(env, &[7; 32])
 }
 
+// ============================================================================
+// OFFICIAL UPSTREAM TESTS
+// ============================================================================
+
 #[test]
 fn deploy_username_stores_record_and_emits_event() {
     let env = Env::default();
@@ -168,4 +172,112 @@ fn get_username_owner_returns_none_for_unregistered_hash() {
     let unknown_hash = BytesN::from_array(&env, &[0xFF; 32]);
 
     assert_eq!(factory.get_username_owner(&unknown_hash), None);
+}
+
+// ============================================================================
+// ISSUE #108 SUPPLEMENTARY TESTS
+// ============================================================================
+
+#[test]
+fn test_deploy_username_success() {
+    let env = Env::default();
+    let (factory_id, factory, auction_contract, _core_contract) = setup_factory(&env);
+    let owner = Address::generate(&env);
+    let hash = BytesN::from_array(&env, &[10; 32]);
+    let deploy_args: Vec<Val> = (hash.clone(), owner.clone()).into_val(&env);
+
+    env.mock_auths(&[MockAuth {
+        address: &auction_contract,
+        invoke: &MockAuthInvoke {
+            contract: &factory_id,
+            fn_name: "deploy_username",
+            args: deploy_args,
+            sub_invokes: &[],
+        },
+    }]);
+
+    factory.deploy_username(&hash, &owner);
+    let record = factory.get_username_record(&hash).unwrap();
+    assert_eq!(record.owner, owner);
+}
+
+#[test]
+fn test_deploy_username_duplicate_fails() {
+    let env = Env::default();
+    let (factory_id, factory, auction_contract, _) = setup_factory(&env);
+    let owner = Address::generate(&env);
+    let hash = BytesN::from_array(&env, &[11; 32]);
+    let deploy_args: Vec<Val> = (hash.clone(), owner.clone()).into_val(&env);
+
+    env.mock_auths(&[MockAuth {
+        address: &auction_contract,
+        invoke: &MockAuthInvoke {
+            contract: &factory_id,
+            fn_name: "deploy_username",
+            args: deploy_args.clone(),
+            sub_invokes: &[],
+        },
+    }]);
+    factory.deploy_username(&hash, &owner);
+
+    env.mock_auths(&[MockAuth {
+        address: &auction_contract,
+        invoke: &MockAuthInvoke {
+            contract: &factory_id,
+            fn_name: "deploy_username",
+            args: deploy_args,
+            sub_invokes: &[],
+        },
+    }]);
+
+    let result = env.try_invoke_contract::<(), FactoryError>(
+        &factory_id,
+        &Symbol::new(&env, "deploy_username"),
+        Vec::<Val>::from_array(
+            &env,
+            [hash.clone().into_val(&env), owner.clone().into_val(&env)],
+        ),
+    );
+
+    assert_eq!(result, Err(Ok(FactoryError::AlreadyDeployed)));
+}
+
+#[test]
+fn test_deploy_unauthorized_fails() {
+    let env = Env::default();
+    let (factory_id, _, _, _) = setup_factory(&env);
+    let wrong_caller = Address::generate(&env);
+    let owner = Address::generate(&env);
+    let hash = BytesN::from_array(&env, &[12; 32]);
+    let deploy_args: Vec<Val> = (hash.clone(), owner.clone()).into_val(&env);
+
+    env.mock_auths(&[MockAuth {
+        address: &wrong_caller,
+        invoke: &MockAuthInvoke {
+            contract: &factory_id,
+            fn_name: "deploy_username",
+            args: deploy_args,
+            sub_invokes: &[],
+        },
+    }]);
+
+    let result = env.try_invoke_contract::<(), FactoryError>(
+        &factory_id,
+        &Symbol::new(&env, "deploy_username"),
+        Vec::<Val>::from_array(
+            &env,
+            [hash.clone().into_val(&env), owner.clone().into_val(&env)],
+        ),
+    );
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_get_owner_none_for_unknown() {
+    let env = Env::default();
+    let (_, factory, _, _) = setup_factory(&env);
+    let unknown_hash = BytesN::from_array(&env, &[99; 32]);
+    let record = factory.get_username_record(&unknown_hash);
+    assert!(record.is_none());
 }
