@@ -3,7 +3,7 @@ use soroban_sdk::contracterror;
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
-pub enum Error {
+pub enum AuctionError {
     NotWinner = 1,
     AlreadyClaimed = 2,
     NotClosed = 3,

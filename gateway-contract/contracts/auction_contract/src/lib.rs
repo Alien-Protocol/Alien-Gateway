@@ -14,12 +14,12 @@ pub struct AuctionContract;
 
 #[contractimpl]
 impl AuctionContract {
-    pub fn close_auction(env: Env, username_hash: BytesN<32>) -> Result<(), crate::errors::Error> {
+    pub fn close_auction(env: Env, username_hash: BytesN<32>) -> Result<(), crate::errors::AuctionError> {
         let status = storage::get_status(&env);
 
         // Reject if status is not Open
         if status != types::AuctionStatus::Open {
-            return Err(crate::errors::Error::AuctionNotOpen);
+            return Err(crate::errors::AuctionError::AuctionNotOpen);
         }
 
         // Get current ledger timestamp and end time
@@ -28,7 +28,7 @@ impl AuctionContract {
 
         // Reject if timestamp < end_time
         if current_time < end_time {
-            return Err(crate::errors::Error::AuctionNotClosed);
+            return Err(crate::errors::AuctionError::AuctionNotClosed);
         }
 
         // Set status to Closed
@@ -48,22 +48,22 @@ impl AuctionContract {
         env: Env,
         username_hash: BytesN<32>,
         claimer: Address,
-    ) -> Result<(), crate::errors::Error> {
+    ) -> Result<(), crate::errors::AuctionError> {
         claimer.require_auth();
 
         let status = storage::get_status(&env);
 
         if status == types::AuctionStatus::Claimed {
-            return Err(crate::errors::Error::AlreadyClaimed);
+            return Err(crate::errors::AuctionError::AlreadyClaimed);
         }
 
         if status != types::AuctionStatus::Closed {
-            return Err(crate::errors::Error::NotClosed);
+            return Err(crate::errors::AuctionError::NotClosed);
         }
 
         let highest_bidder = storage::get_highest_bidder(&env);
         if !highest_bidder.map(|h| h == claimer).unwrap_or(false) {
-            return Err(crate::errors::Error::NotWinner);
+            return Err(crate::errors::AuctionError::NotWinner);
         }
 
         // Set status to Claimed
@@ -75,7 +75,7 @@ impl AuctionContract {
             return Err(crate::errors::Error::NoFactoryContract);
         }
 
-        let factory_addr = factory.ok_or(crate::errors::Error::NoFactoryContract)?;
+        let factory_addr = factory.ok_or(crate::errors::AuctionError::NoFactoryContract)?;
         env.invoke_contract::<()>(
             &factory_addr,
             &Symbol::new(&env, "deploy_username"),
