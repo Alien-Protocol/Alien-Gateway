@@ -192,7 +192,7 @@ fn test_close_auction_zero_bid() {
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #5)")]
+#[should_panic(expected = "HostError: Error(Contract, #9)")]
 fn test_close_auction_not_expired() {
     let env = Env::default();
 
@@ -217,7 +217,7 @@ fn test_close_auction_not_expired() {
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #6)")]
+#[should_panic(expected = "HostError: Error(Contract, #8)")]
 fn test_close_auction_not_open() {
     let env = Env::default();
 
