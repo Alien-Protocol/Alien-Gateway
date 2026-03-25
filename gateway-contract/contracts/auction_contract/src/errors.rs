@@ -8,4 +8,6 @@ pub enum Error {
     AlreadyClaimed = 2,
     NotClosed = 3,
     NoFactoryContract = 4,
+    AuctionNotClosed = 5,
+    NotOpen = 6,
 }

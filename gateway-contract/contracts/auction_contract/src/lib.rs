@@ -14,6 +14,36 @@ pub struct AuctionContract;
 
 #[contractimpl]
 impl AuctionContract {
+    pub fn close_auction(env: Env, username_hash: BytesN<32>) -> Result<(), crate::errors::Error> {
+        let status = storage::get_status(&env);
+
+        // Reject if status is not Open
+        if status != types::AuctionStatus::Open {
+            return Err(crate::errors::Error::NotOpen);
+        }
+
+        // Get current ledger timestamp and end time
+        let current_time = env.ledger().timestamp();
+        let end_time = storage::get_end_time(&env);
+
+        // Reject if timestamp < end_time
+        if current_time < end_time {
+            return Err(crate::errors::Error::AuctionNotClosed);
+        }
+
+        // Set status to Closed
+        storage::set_status(&env, types::AuctionStatus::Closed);
+
+        // Get winner and winning bid
+        let winner = storage::get_highest_bidder(&env);
+        let winning_bid = storage::get_highest_bid(&env);
+
+        // Emit AUCTION_CLOSED event with winner and winning bid
+        events::emit_auction_closed(&env, &username_hash, winner.clone(), winning_bid);
+
+        Ok(())
+    }
+
     pub fn claim_username(
         env: Env,
         username_hash: BytesN<32>,
