@@ -19,7 +19,7 @@ impl AuctionContract {
 
         // Reject if status is not Open
         if status != types::AuctionStatus::Open {
-            return Err(crate::errors::Error::NotOpen);
+            return Err(crate::errors::Error::AuctionNotOpen);
         }
 
         // Get current ledger timestamp and end time
