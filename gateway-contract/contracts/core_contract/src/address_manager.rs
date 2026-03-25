@@ -5,8 +5,6 @@ use crate::events::{CHAIN_ADD, CHAIN_REM};
 use crate::registration::DataKey as CommitmentKey;
 use crate::types::ChainType;
 
-/// Storage key for chain addresses.
-/// Keyed by (username_hash, chain) → raw address bytes.
 #[contracttype]
 #[derive(Clone)]
 pub enum ChainAddrKey {
@@ -16,14 +14,6 @@ pub enum ChainAddrKey {
 pub struct AddressManager;
 
 impl AddressManager {
-    /// Link an external chain address to a registered username commitment.
-    ///
-    /// - `caller`        – must be the registered owner of `username_hash`
-    /// - `username_hash` – 32-byte Poseidon commitment of the username
-    /// - `chain`         – target chain (`Evm`, `Bitcoin`, or `Solana`)
-    /// - `address`       – raw address bytes (ASCII string representation)
-    ///
-    /// Emits `CHAIN_ADD` event with `(username_hash, chain, address)`.
     pub fn add_chain_address(
         env: Env,
         caller: Address,
@@ -31,10 +21,8 @@ impl AddressManager {
         chain: ChainType,
         address: Bytes,
     ) {
-        // 1. Authenticate the caller.
         caller.require_auth();
 
-        // 2. Verify the commitment is registered and caller is the owner.
         let owner_key = CommitmentKey::Commitment(username_hash.clone());
         let owner: Address = env
             .storage()
@@ -46,23 +34,18 @@ impl AddressManager {
             panic_with_error!(&env, ChainAddressError::Unauthorized);
         }
 
-        // 3. Validate the address format for the given chain.
         if !Self::validate_address(&chain, &address) {
             panic_with_error!(&env, ChainAddressError::InvalidAddress);
         }
 
-        // 4. Persist the chain address.
         let key = ChainAddrKey::ChainAddress(username_hash.clone(), chain.clone());
         env.storage().persistent().set(&key, &address);
 
-        // 5. Emit event.
         #[allow(deprecated)]
         env.events()
             .publish((CHAIN_ADD,), (username_hash, chain, address));
     }
 
-    /// Retrieve the stored chain address for a given commitment and chain type.
-    /// Returns `None` if not set.
     pub fn get_chain_address(
         env: Env,
         username_hash: BytesN<32>,
@@ -72,23 +55,14 @@ impl AddressManager {
         env.storage().persistent().get(&key)
     }
 
-    /// Remove a chain address for a registered username commitment.
-    ///
-    /// - `caller`        – must be the registered owner of `username_hash`
-    /// - `username_hash` – 32-byte Poseidon commitment of the username
-    /// - `chain`         – target chain to remove
-    ///
-    /// Emits `CHAIN_REM` event with `(username_hash, chain)`.
     pub fn remove_chain_address(
         env: Env,
         caller: Address,
         username_hash: BytesN<32>,
         chain: ChainType,
     ) {
-        // 1. Authenticate the caller.
         caller.require_auth();
 
-        // 2. Verify the commitment is registered and caller is the owner.
         let owner_key = CommitmentKey::Commitment(username_hash.clone());
         let owner: Address = env
             .storage()
@@ -100,31 +74,21 @@ impl AddressManager {
             panic_with_error!(&env, ChainAddressError::Unauthorized);
         }
 
-        // 3. Remove the chain address from storage.
         let key = ChainAddrKey::ChainAddress(username_hash.clone(), chain.clone());
         env.storage().persistent().remove(&key);
 
-        // 4. Emit event.
         #[allow(deprecated)]
         env.events().publish((CHAIN_REM,), (username_hash, chain));
     }
 
-    // ── Validation helpers ──────────────────────────────────────────────────
-
     fn validate_address(chain: &ChainType, address: &Bytes) -> bool {
         let len = address.len();
         match chain {
-            // EVM: "0x" prefix + 40 hex chars = 42 ASCII bytes.
             ChainType::Evm => {
-                len == 42
-                    && address.get(0) == Some(0x30) // '0'
-                    && address.get(1) == Some(0x78) // 'x'
+                len == 42 && address.get(0) == Some(0x30) && address.get(1) == Some(0x78)
             }
-            // Bitcoin: legacy (25–34 chars), P2SH (34), or bech32 (42–62).
             ChainType::Bitcoin => (25..=62).contains(&len),
-            // Solana: base58-encoded public key, typically 32–44 chars.
             ChainType::Solana => (32..=44).contains(&len),
-            // Cosmos: bech32-encoded address with prefix, typically 39–45 chars.
             ChainType::Cosmos => (39..=45).contains(&len),
         }
     }
