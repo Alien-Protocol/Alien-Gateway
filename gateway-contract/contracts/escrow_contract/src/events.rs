@@ -66,6 +66,17 @@ pub struct AutoPayEvent {
     pub timestamp: u64,
 }
 
+/// Event emitted when a vault is cancelled.
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VaultCancelEvent {
+    /// The commitment identifier of the cancelled vault.
+    #[topic]
+    pub commitment: BytesN<32>,
+    /// Amount refunded back to the vault owner.
+    pub refunded_amount: i128,
+}
+
 /// Helper for emitting contract events.
 pub struct Events;
 
@@ -134,6 +145,15 @@ impl Events {
             to,
             amount,
             timestamp,
+        }
+        .publish(env);
+    }
+
+    /// Emits a `VaultCancelEvent` to the host.
+    pub fn vault_cancel(env: &Env, commitment: BytesN<32>, refunded_amount: i128) {
+        VaultCancelEvent {
+            commitment,
+            refunded_amount,
         }
         .publish(env);
     }

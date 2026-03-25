@@ -6,6 +6,20 @@ pub mod events;
 pub mod storage;
 pub mod types;
 
+// Ensure event symbols are linked from the main contract entrypoint module.
+use crate::events::{AUCTION_CLOSED, AUCTION_CREATED, BID_PLACED, BID_REFUNDED, USERNAME_CLAIMED};
+
+#[allow(dead_code)]
+fn _touch_event_symbols() {
+    let _ = (
+        AUCTION_CREATED,
+        BID_PLACED,
+        AUCTION_CLOSED,
+        USERNAME_CLAIMED,
+        BID_REFUNDED,
+    );
+}
+
 #[cfg(test)]
 mod test;
 

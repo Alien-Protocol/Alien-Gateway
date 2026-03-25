@@ -235,14 +235,23 @@
           "v0": {
             "topics": [
               {
-                "symbol": "USERNAME_CLAIMED"
+                "symbol": "username_claimed_event"
               },
               {
                 "bytes": "0000000000000000000000000000000000000000000000000000000000000000"
               }
             ],
             "data": {
-              "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+              "map": [
+                {
+                  "key": {
+                    "symbol": "owner"
+                  },
+                  "val": {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                  }
+                }
+              ]
             }
           }
         }

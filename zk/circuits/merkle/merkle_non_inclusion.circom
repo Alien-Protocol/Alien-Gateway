@@ -1,45 +1,71 @@
 pragma circom 2.0.0;
 
-include "path_calculator.circom";
+include "sorted_tree.circom";
+include "range_check.circom";
+include "../username_hash_impl.circom";
 
 // MerkleNonInclusionProof
 //
-// Proves that a username slot is EMPTY in the Sparse Merkle Tree, i.e.
-// the leaf at the given path is 0, without revealing the username itself.
+// Proves that a (private) username_hash is NOT contained in a sorted Merkle
+// tree by providing two consecutive boundary leaves:
 //
-// The prover supplies the Merkle path to the target slot and the current
-// root. The circuit recomputes the root from leaf = 0 and asserts it
-// matches the public root, proving the slot is unoccupied.
+//   leaf_before < username_hash < leaf_after
+//
+// Soundness comes from:
+// 1) verifying both boundary leaves exist in the tree at consecutive indices
+// 2) checking strict range ordering around username_hash
 //
 // Public inputs  : root
-// Private inputs : merklePathSiblings, merklePathIndices
-// Public output  : out_root  (echoes root, for on-chain anchoring)
-
+// Public outputs : out_root (echoes root), isAvailable (1 if non-inclusion holds)
+// Private inputs : username, boundary leaves + their Merkle paths
 template MerkleNonInclusionProof(levels) {
+    // Private inputs
+    signal input username[32];
 
-    // ── Private inputs ───────────────────────────────────────────────────────
-    signal input merklePathSiblings[levels];  // sibling at each tree level
-    signal input merklePathIndices[levels];   // 0 = left child, 1 = right child
+    signal input leaf_before;
+    signal input leaf_after;
 
-    // ── Public inputs ────────────────────────────────────────────────────────
-    signal input root;  // current SMT root
+    signal input merklePathBeforeSiblings[levels];
+    signal input merklePathBeforeIndices[levels];
+    signal input merklePathAfterSiblings[levels];
+    signal input merklePathAfterIndices[levels];
 
-    // ── Public output ────────────────────────────────────────────────────────
+    // Public inputs
+    signal input root;
+
+    // Public outputs
     signal output out_root;
+    signal output isAvailable;
 
-    // ── Verify the slot is empty ─────────────────────────────────────────────
-    // Walk up from leaf = 0 (empty slot) along the provided path.
-    // The computed root must equal the public root, proving the slot is empty.
-    component calc = PathCalculator(levels);
-    calc.leaf <== 0;
-    for (var i = 0; i < levels; i++) {
-        calc.pathElements[i] <== merklePathSiblings[i];
-        calc.pathIndices[i]  <== merklePathIndices[i];
+    // 1) Compute username_hash from the private username.
+    component usernameHasher = UsernameHash();
+    for (var i = 0; i < 32; i++) {
+        usernameHasher.username[i] <== username[i];
     }
 
-    calc.root === root;
+    // 2) Verify boundaries exist and are consecutive.
+    component tree = SortedTreeConsecutive(levels);
+    tree.root <== root;
+    tree.leaf_before <== leaf_before;
+    tree.leaf_after <== leaf_after;
+    for (var i = 0; i < levels; i++) {
+        tree.merklePathBeforeSiblings[i] <== merklePathBeforeSiblings[i];
+        tree.merklePathBeforeIndices[i] <== merklePathBeforeIndices[i];
+        tree.merklePathAfterSiblings[i] <== merklePathAfterSiblings[i];
+        tree.merklePathAfterIndices[i] <== merklePathAfterIndices[i];
+    }
 
+    // 3) Prove username_hash falls strictly between the consecutive boundaries.
+    component range = RangeCheck(252);
+    range.leaf_before <== leaf_before;
+    range.value <== usernameHasher.username_hash;
+    range.leaf_after <== leaf_after;
+    range.inRange === 1;
+
+    // 4) Output availability.
     out_root <== root;
+    isAvailable <== 1;
 }
 
 component main {public [root]} = MerkleNonInclusionProof(20);
+

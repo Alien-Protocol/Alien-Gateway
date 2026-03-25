@@ -126,6 +126,13 @@ impl EscrowContract {
             panic_with_error!(&env, EscrowError::PaymentNotYetDue);
         }
 
+        // Reject execution if the source vault was cancelled.
+        let state = read_vault_state(&env, &payment.from)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+        if !state.is_active {
+            panic_with_error!(&env, EscrowError::VaultInactive);
+        }
+
         let recipient = resolve(&env, &payment.to);
         let token_client = token::Client::new(&env, &payment.token);
         token_client.transfer(&env.current_contract_address(), &recipient, &payment.amount);
@@ -134,6 +141,42 @@ impl EscrowContract {
         write_scheduled_payment(&env, payment_id, &payment);
 
         Events::pay_exec(&env, payment_id, payment.from, payment.to, payment.amount);
+    }
+
+    /// Cancels an existing vault by commitment.
+    ///
+    /// Marks the vault as inactive and refunds any remaining balance to the owner.
+    /// Once cancelled, no new deposits/payments/auto-pays should be triggerable on it.
+    pub fn cancel_vault(env: Env, commitment: BytesN<32>) {
+        // 1) Load vault config + authenticate as owner.
+        let config = read_vault_config(&env, &commitment)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+        config.owner.require_auth();
+
+        // 2) Load vault mutable state (panic if vault doesn't exist).
+        let mut state = read_vault_state(&env, &commitment)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+
+        // 3) Refund any remaining balance.
+        let refunded_amount = if state.balance > 0 {
+            let token_client = token::Client::new(&env, &config.token);
+            token_client.transfer(
+                &env.current_contract_address(),
+                &config.owner,
+                &state.balance,
+            );
+            state.balance
+        } else {
+            0
+        };
+
+        // 4) Mark inactive and zero balance.
+        state.is_active = false;
+        state.balance = 0;
+        write_vault_state(&env, &commitment, &state);
+
+        // 5) Emit cancellation event.
+        Events::vault_cancel(&env, commitment, refunded_amount);
     }
 
     /// Registers a recurring payment rule.
@@ -228,6 +271,11 @@ impl EscrowContract {
         // 3. Load vault state and check balance
         let mut state = read_vault_state(&env, &from)
             .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+
+        // Reject if the source vault was cancelled.
+        if !state.is_active {
+            panic_with_error!(&env, EscrowError::VaultInactive);
+        }
 
         if state.balance < auto_pay.amount {
             panic_with_error!(&env, EscrowError::InsufficientBalance);
