@@ -5,6 +5,7 @@ members = [
   "contracts/core_contract",
   "contracts/escrow_contract",
   "contracts/factory_contract",
+  "tests",
 ]
 
 [workspace.dependencies]

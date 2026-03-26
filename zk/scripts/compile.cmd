@@ -22,6 +22,9 @@ echo.
 call :compile_circuit "merkle_inclusion" "merkle\merkle_inclusion.circom"
 if errorlevel 1 goto :error
 
+call :compile_circuit "merkle_non_inclusion" "merkle\merkle_non_inclusion.circom"
+if errorlevel 1 goto :error
+
 call :compile_circuit "merkle_update" "merkle_update.circom"
 if errorlevel 1 goto :error
 
@@ -29,6 +32,9 @@ call :compile_circuit "merkle_update_proof" "merkle\merkle_update_proof.circom"
 if errorlevel 1 goto :error
 
 call :compile_circuit "username_merkle" "username_merkle.circom"
+if errorlevel 1 goto :error
+
+call :compile_circuit "username_hash" "username_hash.circom"
 if errorlevel 1 goto :error
 
 echo ================================================

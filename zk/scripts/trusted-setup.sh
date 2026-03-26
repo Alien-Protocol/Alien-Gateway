@@ -17,6 +17,7 @@ CIRCUITS=(
   "merkle_update"
   "merkle_update_proof"
   "username_merkle"
+  "username_hash"
 )
 
 # Power of 2 constraints — merkle_inclusion has ~8070 constraints, needs >= 14

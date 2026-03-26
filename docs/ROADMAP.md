@@ -128,7 +128,7 @@ The user-facing feature set: resolving usernames to addresses and routing paymen
 
 | # | Issue | Description | Parallelizable |
 |---|-------|-------------|---------------|
-| — | Username → Address Resolver | `resolve(username_hash) → Address` contract function | ✅ Yes |
+| — | Username → Address Resolver | `resolve(username_hash) → (Address, Option<u64>)` contract function | ✅ Yes |
 | — | Stellar Memo Routing | Route payments using Stellar transaction memos tied to resolved usernames | ✅ Yes |
 | — | Escrow / Payment Flow | Optional escrow for payments to usernames not yet claimed | After resolver |
 | — | Off-chain Resolver Client | TypeScript/JS SDK for resolving usernames and building payment transactions | ✅ Yes |

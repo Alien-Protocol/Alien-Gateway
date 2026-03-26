@@ -1,19 +1,52 @@
 use crate::errors::EscrowError;
-use crate::types::{DataKey, ScheduledPayment, VaultState};
-use soroban_sdk::{BytesN, Env};
+use crate::types::{AutoPay, DataKey, LegacyVault, ScheduledPayment, VaultConfig, VaultState};
+use soroban_sdk::{Address, BytesN, Env};
 
-/// Reads a vault's state from persistent storage.
-pub fn read_vault(env: &Env, from: &BytesN<32>) -> Option<VaultState> {
-    env.storage()
-        .persistent()
-        .get(&DataKey::VaultState(from.clone()))
+/// Reads a vault's immutable configuration from persistent storage.
+///
+/// Checks the new `VaultConfig` key first; if absent, falls back to the legacy `Vault` key and
+/// projects the combined record into a `VaultConfig` for backward compatibility.
+pub fn read_vault_config(env: &Env, commitment: &BytesN<32>) -> Option<VaultConfig> {
+    let storage = env.storage().persistent();
+    if let Some(config) = storage.get(&DataKey::VaultConfig(commitment.clone())) {
+        return Some(config);
+    }
+    let legacy: LegacyVault = storage.get(&DataKey::Vault(commitment.clone()))?;
+    Some(VaultConfig {
+        owner: legacy.owner,
+        token: legacy.token,
+        created_at: legacy.created_at,
+    })
 }
 
-/// Writes a vault's state to persistent storage.
-pub fn write_vault(env: &Env, from: &BytesN<32>, vault: &VaultState) {
+/// Writes a vault's immutable configuration to persistent storage.
+pub fn write_vault_config(env: &Env, commitment: &BytesN<32>, config: &VaultConfig) {
     env.storage()
         .persistent()
-        .set(&DataKey::VaultState(from.clone()), vault);
+        .set(&DataKey::VaultConfig(commitment.clone()), config);
+}
+
+/// Reads a vault's mutable state from persistent storage.
+///
+/// Checks the new `VaultState` key first; if absent, falls back to the legacy `Vault` key and
+/// projects the combined record into a `VaultState` for backward compatibility.
+pub fn read_vault_state(env: &Env, commitment: &BytesN<32>) -> Option<VaultState> {
+    let storage = env.storage().persistent();
+    if let Some(state) = storage.get(&DataKey::VaultState(commitment.clone())) {
+        return Some(state);
+    }
+    let legacy: LegacyVault = storage.get(&DataKey::Vault(commitment.clone()))?;
+    Some(VaultState {
+        balance: legacy.balance,
+        is_active: legacy.is_active,
+    })
+}
+
+/// Writes a vault's mutable state to persistent storage.
+pub fn write_vault_state(env: &Env, commitment: &BytesN<32>, state: &VaultState) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::VaultState(commitment.clone()), state);
 }
 
 /// Increments the global payment counter and returns the previous ID.
@@ -38,9 +71,58 @@ pub fn increment_payment_id(env: &Env) -> Result<u32, EscrowError> {
     Ok(id)
 }
 
+/// Reads the Registration contract address from instance storage.
+pub fn read_registration_contract(env: &Env) -> Option<Address> {
+    env.storage().instance().get(&DataKey::RegistrationContract)
+}
+
+/// Writes the Registration contract address to instance storage.
+pub fn write_registration_contract(env: &Env, address: &Address) {
+    env.storage()
+        .instance()
+        .set(&DataKey::RegistrationContract, address);
+}
+
 /// Records a new scheduled payment in persistent storage.
 pub fn write_scheduled_payment(env: &Env, id: u32, payment: &ScheduledPayment) {
     env.storage()
         .persistent()
         .set(&DataKey::ScheduledPayment(id), payment);
+}
+
+/// Increments the global auto-pay counter and returns the previous ID.
+///
+/// ### Errors
+/// - Returns `EscrowError::AutoPayCounterOverflow` if the counter reaches `u32::MAX`.
+pub fn increment_auto_pay_id(env: &Env) -> Result<u32, EscrowError> {
+    let id: u32 = env
+        .storage()
+        .instance()
+        .get(&DataKey::AutoPayCounter)
+        .unwrap_or(0);
+
+    let next = id
+        .checked_add(1)
+        .ok_or(EscrowError::AutoPayCounterOverflow)?;
+
+    env.storage()
+        .instance()
+        .set(&DataKey::AutoPayCounter, &next);
+
+    Ok(id)
+}
+
+/// Records an auto-pay rule in persistent storage under the composite key (vault, rule_id).
+pub fn write_auto_pay(env: &Env, commitment: &BytesN<32>, rule_id: u32, auto_pay: &AutoPay) {
+    env.storage().persistent().set(
+        &DataKey::AutoPay(commitment.clone(), rule_id as u64),
+        auto_pay,
+    );
+}
+
+/// Reads an auto-pay rule from persistent storage by vault commitment and rule ID.
+pub fn read_auto_pay(env: &Env, commitment: &BytesN<32>, rule_id: u32) -> Option<AutoPay> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::AutoPay(commitment.clone(), rule_id as u64))
 }
