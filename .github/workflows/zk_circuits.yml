@@ -65,7 +65,7 @@ jobs:
 
     - name: Verify circuit compilation
       run: |
-        for circuit in merkle_inclusion merkle_update merkle_update_proof username_merkle; do
+        for circuit in merkle_inclusion merkle_update merkle_update_proof username_merkle username_hash; do
           echo "── $circuit"
           ls -lh build/$circuit/$circuit.r1cs
           ls -lh build/$circuit/$circuit.sym

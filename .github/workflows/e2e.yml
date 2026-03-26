@@ -1,0 +1,48 @@
+name: E2E Full Flow
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install Circom
+        run: |
+          wget https://github.com/iden3/circom/releases/download/v2.1.6/circom-linux-amd64
+          chmod +x circom-linux-amd64
+          sudo mv circom-linux-amd64 /usr/local/bin/circom
+
+      - name: Install ZK Dependencies
+        working-directory: ./zk
+        run: npm ci
+
+      - name: Compile Circuits
+        working-directory: ./zk
+        run: |
+          export PATH="./node_modules/.bin:$PATH"
+          ./scripts/compile.sh
+          ./scripts/trusted-setup.sh
+
+      - name: Run ZK E2E Tests
+        working-directory: ./zk
+        run: npx ts-node tests/e2e_proof_flow.ts
+
+      - name: Run Gateway E2E Tests
+        working-directory: ./gateway-contract
+        run: cargo test --workspace --all-features

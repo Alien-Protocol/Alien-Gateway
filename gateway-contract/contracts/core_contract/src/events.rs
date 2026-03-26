@@ -10,6 +10,7 @@ pub const MASTER_SET: Symbol = symbol_short!("MSTR_SET");
 pub const ADDR_ADDED: Symbol = symbol_short!("ADDR_ADD");
 pub const CHAIN_ADD: Symbol = symbol_short!("CHAIN_ADD");
 pub const CHAIN_REM: Symbol = symbol_short!("CHAIN_REM");
+pub const PRIV_SET: Symbol = symbol_short!("PRIV_SET");
 pub const VAULT_CREATE: Symbol = symbol_short!("VAULT_CRT");
 pub const DEPOSIT: Symbol = symbol_short!("DEPOSIT");
 pub const WITHDRAW: Symbol = symbol_short!("WITHDRAW");
