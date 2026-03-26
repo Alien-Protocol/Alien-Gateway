@@ -1,4 +1,5 @@
-use soroban_sdk::{contracttype, symbol_short, Address, BytesN, Env, Symbol};
+use crate::events::REGISTER_EVENT;
+use soroban_sdk::{contracttype, Address, BytesN, Env};
 
 // Storage Keys
 #[contracttype]
@@ -6,9 +7,6 @@ use soroban_sdk::{contracttype, symbol_short, Address, BytesN, Env, Symbol};
 pub enum DataKey {
     Commitment(BytesN<32>),
 }
-
-// Events
-const REGISTER_EVENT: Symbol = symbol_short!("REGISTER");
 
 pub struct Registration;
 

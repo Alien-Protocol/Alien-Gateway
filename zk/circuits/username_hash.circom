@@ -4,7 +4,12 @@ include "circomlib/circuits/poseidon.circom";
 
 template UsernameHash() {
 
-    // 32-character fixed username
+    // 32-character fixed username.
+    // AUDIT NOTE (F-03): Each element is an unconstrained field element.
+    // No range check enforces valid character values (e.g., 0–127 ASCII).
+    // Two distinct byte representations of the same logical username can
+    // produce different hashes, breaking uniqueness. Range checks must be
+    // enforced off-chain or via a dedicated range-check sub-circuit.
     signal input username[32];
 
     // Public output
@@ -40,3 +45,4 @@ template UsernameHash() {
     username_hash <== finalHash.out;
 }
 
+component main = UsernameHash();
