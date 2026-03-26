@@ -1,7 +1,7 @@
 pragma circom 2.0.0;
 
 include "circomlib/circuits/poseidon.circom";
-include "./username_hash.circom";
+include "./username_hash_impl.circom";
 
 template UsernameMerkle(depth) {
 

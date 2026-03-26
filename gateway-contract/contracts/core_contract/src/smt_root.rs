@@ -1,23 +1,16 @@
-use soroban_sdk::{contracttype, BytesN, Env};
+use soroban_sdk::{BytesN, Env};
 
-use crate::contract_core;
 use crate::events::ROOT_UPDATED;
-
-// Storage Keys
-#[contracttype]
-#[derive(Clone)]
-pub enum DataKey {
-    SmtRoot,
-}
+use crate::storage::DataKey;
 
 pub struct SmtRoot;
 
 impl SmtRoot {
-    /// Update the SMT root. Caller must be the contract owner.
+    /// Update the SMT root internally (not exposed as a public contract function).
+    /// This should only be called from within verified proof submission flow.
     /// Emits ROOT_UPD event with (old_root, new_root).
-    pub fn update_root(env: Env, new_root: BytesN<32>) {
-        contract_core::auth::require_owner(&env);
-
+    #[allow(dead_code)]
+    pub(crate) fn update_root(env: &Env, new_root: BytesN<32>) {
         let old_root: Option<BytesN<32>> = env.storage().instance().get(&DataKey::SmtRoot);
 
         env.storage().instance().set(&DataKey::SmtRoot, &new_root);

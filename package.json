@@ -6,6 +6,7 @@
     "lint-staged": "^16.3.3"
   },
   "scripts": {
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:poseidon": "mocha tests/poseidon.test.js"
   }
 }

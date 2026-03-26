@@ -10,7 +10,6 @@ template MerkleInclusionProof(levels) {
     signal input root; // expected root
 
     signal output out_root;
-    signal output isValid;
 
     component leafGen = UsernameLeaf();
     for (var i = 0; i < 32; i++) { leafGen.username[i] <== username[i]; }
@@ -26,7 +25,8 @@ template MerkleInclusionProof(levels) {
     // Since the verifier enforces the equality using ===
     // If we get here, the path is valid.
     out_root <== root;
-    isValid <== 1;
+    // AUDIT NOTE (F-07): soundness comes from the root equality constraint in
+    // MerklePathVerifier, so there is no separate isValid output signal.
 }
 
 // Configurable component instance (e.g. 20 levels for 1000+ users)

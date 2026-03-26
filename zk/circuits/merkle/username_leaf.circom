@@ -1,5 +1,5 @@
 pragma circom 2.0.0;
-include "../username_hash.circom";
+include "../username_hash_impl.circom";
 
 // Constructs a leaf from a username
 template UsernameLeaf() {
