@@ -369,6 +369,43 @@ fn test_register_resolver_stale_root_fails() {
 }
 
 #[test]
+#[should_panic(expected = "Error(Contract, #4)")]
+fn test_register_resolver_stale_root_after_first_registration() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, initial_root) = setup_with_root(&env);
+
+    let caller = Address::generate(&env);
+    let first_hash = commitment(&env, 70);
+    let first_new_root = BytesN::from_array(&env, &[71u8; 32]);
+
+    // First registration succeeds and advances SMT root.
+    client.register_resolver(
+        &caller,
+        &first_hash,
+        &dummy_proof(&env),
+        &PublicSignals {
+            old_root: initial_root.clone(),
+            new_root: first_new_root,
+        },
+    );
+
+    let second_hash = commitment(&env, 72);
+    let second_new_root = BytesN::from_array(&env, &[73u8; 32]);
+
+    // Replay with the original old_root must fail as stale.
+    client.register_resolver(
+        &caller,
+        &second_hash,
+        &dummy_proof(&env),
+        &PublicSignals {
+            old_root: initial_root,
+            new_root: second_new_root,
+        },
+    );
+}
+
+#[test]
 #[should_panic(expected = "Error(Contract, #6)")]
 fn test_resolve_stellar_no_address_linked_when_not_set() {
     let env = Env::default();
