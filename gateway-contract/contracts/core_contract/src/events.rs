@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use soroban_sdk::{symbol_short, Symbol};
+use soroban_sdk::{symbol_short, Env, Symbol};
 
 pub const INIT_EVENT: Symbol = symbol_short!("INIT");
 pub const TRANSFER_EVENT: Symbol = symbol_short!("TRANSFER");
@@ -10,8 +10,11 @@ pub const MASTER_SET: Symbol = symbol_short!("MSTR_SET");
 pub const ADDR_ADDED: Symbol = symbol_short!("ADDR_ADD");
 pub const CHAIN_ADD: Symbol = symbol_short!("CHAIN_ADD");
 pub const CHAIN_REM: Symbol = symbol_short!("CHAIN_REM");
-pub const PRIV_SET: Symbol = symbol_short!("PRIV_SET");
 pub const VAULT_CREATE: Symbol = symbol_short!("VAULT_CRT");
 pub const DEPOSIT: Symbol = symbol_short!("DEPOSIT");
 pub const WITHDRAW: Symbol = symbol_short!("WITHDRAW");
 pub const SCHED_PAY: Symbol = symbol_short!("SCHED_PAY");
+
+pub fn privacy_set_event(env: &Env) -> Symbol {
+    Symbol::new(env, "PRIVACY_SET")
+}

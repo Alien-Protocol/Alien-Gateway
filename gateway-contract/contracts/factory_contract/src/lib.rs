@@ -13,8 +13,8 @@ use soroban_sdk::{contract, contractimpl, panic_with_error, Address, BytesN, Env
 use crate::errors::FactoryError;
 use crate::events::emit_username_deployed;
 use crate::storage::{
-    get_auction_contract, get_core_contract, get_username_record, set_auction_contract,
-    set_core_contract, set_username_record,
+    get_auction_contract, get_core_contract, get_username, has_username, set_auction_contract,
+    set_core_contract, set_username,
 };
 use crate::types::UsernameRecord;
 
@@ -35,7 +35,7 @@ impl FactoryContract {
         };
         auction_contract.require_auth();
 
-        if get_username_record(&env, &username_hash).is_some() {
+        if has_username(&env, &username_hash) {
             panic_with_error!(&env, FactoryError::AlreadyDeployed);
         }
 
@@ -51,7 +51,7 @@ impl FactoryContract {
             core_contract,
         };
 
-        set_username_record(&env, &record);
+        set_username(&env, &record.username_hash.clone(), &record);
         emit_username_deployed(
             &env,
             &record.username_hash,
@@ -61,7 +61,7 @@ impl FactoryContract {
     }
 
     pub fn get_username_record(env: Env, username_hash: BytesN<32>) -> Option<UsernameRecord> {
-        get_username_record(&env, &username_hash)
+        get_username(&env, &username_hash)
     }
 
     /// Returns the owner of a deployed username, or `None` if not registered.
@@ -69,7 +69,7 @@ impl FactoryContract {
     /// **Complexity**: O(1) — single persistent storage lookup.
     /// **Auth**: none — read-only, safe for public polling.
     pub fn get_username_owner(env: Env, username_hash: BytesN<32>) -> Option<Address> {
-        get_username_record(&env, &username_hash).map(|r| r.owner)
+        get_username(&env, &username_hash).map(|r| r.owner)
     }
 
     pub fn get_auction_contract(env: Env) -> Option<Address> {

@@ -421,6 +421,21 @@ impl EscrowContract {
             current_time,
         );
     }
+
+    /// Returns the current balance of a vault identified by its commitment.
+    ///
+    /// This is a read-only getter with no side effects and no authentication
+    /// requirement. It performs a single O(1) persistent-storage lookup.
+    ///
+    /// ### Arguments
+    /// - `commitment`: The `BytesN<32>` identifier of the vault.
+    ///
+    /// ### Returns
+    /// - `None` if the vault does not exist.
+    /// - `Some(balance)` with the vault's current available balance.
+    pub fn get_balance(env: Env, commitment: BytesN<32>) -> Option<i128> {
+        read_vault_state(&env, &commitment).map(|state| state.balance)
+    }
 }
 
 fn resolve(env: &Env, commitment: &BytesN<32>) -> Address {
