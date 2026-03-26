@@ -2,8 +2,10 @@
   "name": "zk",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "scripts/verify_proof.ts",
   "scripts": {
+    "verify:proof": "ts-node scripts/verify_proof.ts",
+    "test:verify": "ts-node tests/test_verify_proof.ts",
   "test": "node tests/test_update_proof.js && node tests/test_non_inclusion_proof.js",
   "test:update_proof": "node tests/test_update_proof.js",
   "test:non_inclusion": "node tests/test_non_inclusion_proof.js",
@@ -12,7 +14,7 @@
 
   "compile": "cd scripts && chmod +x compile.sh && ./compile.sh",
 
-  "compile:all": "npm run compile:merkle_inclusion && npm run compile:merkle_update && npm run compile:merkle_update_proof && npm run compile:username_merkle",
+  "compile:all": "npm run compile:merkle_inclusion && npm run compile:merkle_update && npm run compile:merkle_update_proof && npm run compile:username_merkle && npm run compile:username_leaf",
 
   "compile:merkle_inclusion": "mkdir -p build/merkle_inclusion/wasm && circom circuits/merkle/merkle_inclusion.circom --r1cs --sym -o build/merkle_inclusion -l node_modules && circom circuits/merkle/merkle_inclusion.circom --wasm -o build/merkle_inclusion/wasm -l node_modules",
 

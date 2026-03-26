@@ -1,5 +1,5 @@
-use soroban_sdk::{contracttype, Address, BytesN, Env};
 use crate::events::REGISTER_EVENT;
+use soroban_sdk::{contracttype, Address, BytesN, Env};
 
 // Storage Keys
 #[contracttype]
