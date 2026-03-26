@@ -335,3 +335,65 @@ fn test_execute_scheduled_not_found_panics() {
         Err(Ok(err)) if err == Error::from_contract_error(EscrowError::PaymentNotFound as u32)
     ));
 }
+
+// ─── get_balance tests ───────────────────────────────────────────────
+
+#[test]
+fn test_get_balance_vault_not_found() {
+    let env = Env::default();
+    let (_, client, _, _, _, _) = setup_test(&env);
+
+    let unknown = BytesN::from_array(&env, &[99u8; 32]);
+    assert_eq!(client.get_balance(&unknown), None);
+}
+
+#[test]
+fn test_get_balance_after_deposit() {
+    let env = Env::default();
+    let (contract_id, client, token, _, from, _) = setup_test(&env);
+
+    let balance = 5_000i128;
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        balance,
+    );
+
+    assert_eq!(client.get_balance(&from), Some(balance));
+}
+
+#[test]
+fn test_get_balance_after_payment() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _, from, to) = setup_test(&env);
+
+    let initial = 1_000i128;
+    let amount = 300i128;
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        initial,
+    );
+    create_vault(
+        &env,
+        &contract_id,
+        &to,
+        &Address::generate(&env),
+        &token,
+        0,
+    );
+
+    env.ledger().set_timestamp(1000);
+    client.schedule_payment(&from, &to, &amount, &2000);
+
+    // Balance should reflect the reserved funds
+    assert_eq!(client.get_balance(&from), Some(initial - amount));
+}
