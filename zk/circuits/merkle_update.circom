@@ -17,6 +17,10 @@ template MerkleUpdate(depth) {
     signal output isValid;
 
     // Enforce empty slot
+    // AUDIT NOTE (F-04): This enforces the slot was empty before insertion,
+    // but there is no replay protection at the circuit level. The same oldRoot
+    // can be reused in multiple proofs. The contract MUST reject a root update
+    // if oldRoot does not match the currently stored on-chain root.
     oldLeaf === 0;
 
     // ---------- OLD ROOT ----------
