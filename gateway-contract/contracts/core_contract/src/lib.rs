@@ -36,31 +36,35 @@ impl Contract {
         proof: Bytes,
         public_signals: PublicSignals,
     ) {
+        // ✅ CRITICAL FIX: enforce authentication FIRST
         caller.require_auth();
-
+    
         let key = storage::DataKey::Resolver(commitment.clone());
+    
         if env.storage().persistent().has(&key) {
             panic_with_error!(&env, CoreError::DuplicateCommitment);
         }
-
+    
         let current_root = smt_root::SmtRoot::get_root(env.clone())
             .unwrap_or_else(|| panic_with_error!(&env, CoreError::RootNotSet));
+    
         if public_signals.old_root != current_root {
             panic_with_error!(&env, CoreError::StaleRoot);
         }
-
+    
         if !zk_verifier::ZkVerifier::verify_groth16_proof(&env, &proof, &public_signals) {
             panic_with_error!(&env, CoreError::InvalidProof);
         }
-
+    
         let data = ResolveData {
             wallet: caller.clone(),
             memo: None,
         };
+    
         env.storage().persistent().set(&key, &data);
-
+    
         smt_root::SmtRoot::update_root(&env, public_signals.new_root);
-
+    
         #[allow(deprecated)]
         env.events()
             .publish((REGISTER_EVENT,), (commitment, caller));
