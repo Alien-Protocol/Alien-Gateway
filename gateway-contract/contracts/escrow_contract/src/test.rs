@@ -43,7 +43,7 @@ fn create_vault(
     env.as_contract(contract_id, || {
         env.storage()
             .persistent()
-            .set(&DataKey::Vault(id.clone()), &vault);
+            .set(&DataKey::VaultState(id.clone()), &vault);
     });
 }
 
@@ -75,7 +75,7 @@ fn test_schedule_payment_success() {
         let vault: VaultState = env
             .storage()
             .persistent()
-            .get(&DataKey::Vault(from.clone()))
+            .get(&DataKey::VaultState(from.clone()))
             .unwrap();
         assert_eq!(vault.balance, initial_balance - amount);
 
@@ -214,12 +214,12 @@ fn test_get_balance_after_deposit() {
         let mut vault: VaultState = env
             .storage()
             .persistent()
-            .get(&DataKey::Vault(from.clone()))
+            .get(&DataKey::VaultState(from.clone()))
             .unwrap();
         vault.balance = new_balance;
         env.storage()
             .persistent()
-            .set(&DataKey::Vault(from.clone()), &vault);
+            .set(&DataKey::VaultState(from.clone()), &vault);
     });
 
     // Verify updated balance

@@ -4,8 +4,13 @@ use soroban_sdk::{contracttype, Address, BytesN};
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DataKey {
-    /// Key for a vault's state, indexed by its BytesN<32> commitment.
+    /// Legacy key for a vault's state, indexed by its BytesN<32> commitment.
+    /// Deprecated: Use VaultState instead.
     Vault(BytesN<32>),
+    /// Key for a vault's state, indexed by its BytesN<32> commitment.
+    VaultState(BytesN<32>),
+    /// Key for a vault's configuration, indexed by its BytesN<32> commitment.
+    VaultConfig(BytesN<32>),
     /// Key for a specific scheduled payment, indexed by its unique payment_id (u32).
     ScheduledPayment(u32),
     /// Key for the auto-incrementing payment counter in instance storage.
