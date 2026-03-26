@@ -26,6 +26,10 @@ template MerkleInclusionProof(levels) {
     // Since the verifier enforces the equality using ===
     // If we get here, the path is valid.
     out_root <== root;
+    // AUDIT NOTE (F-07): isValid is hardcoded to 1 and carries no information.
+    // The actual soundness guarantee comes from the root === calculator.root
+    // constraint in MerklePathVerifier. Consider removing this output signal
+    // to avoid misleading callers into treating it as a computed result.
     isValid <== 1;
 }
 

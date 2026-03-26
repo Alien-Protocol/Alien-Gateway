@@ -20,6 +20,11 @@ include "path_calculator.circom";
 template MerkleUpdateProof(levels) {
 
     // ── Private inputs ───────────────────────────────────────────────────────
+    // AUDIT NOTE (F-02): usernameHash is an unconstrained private input.
+    // The circuit does not verify it was produced by UsernameHash(). A prover
+    // can supply any field element as a leaf, inserting arbitrary data into the
+    // registry. Fix: replace usernameHash with username[32] and compose
+    // UsernameHash() internally, making the raw username the private input.
     signal input usernameHash;                    // hash of the new username leaf
     signal input merklePathSiblings[levels];      // sibling node at each tree level
     signal input merklePathIndices[levels];       // 0 = current node is left child
