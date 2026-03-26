@@ -53,12 +53,14 @@ pub fn has_username(env: &Env, hash: &BytesN<32>) -> bool {
         .has(&DataKey::Username(hash.clone()))
 }
 
+#[allow(dead_code)]
 pub fn get_config(env: &Env) -> Option<DeployConfig> {
     env.storage()
         .persistent()
         .get::<DataKey, DeployConfig>(&DataKey::Config)
 }
 
+#[allow(dead_code)]
 pub fn set_config(env: &Env, config: &DeployConfig) {
     env.storage().persistent().set(&DataKey::Config, config);
 }
