@@ -1,8 +1,9 @@
 use soroban_sdk::{contracttype, panic_with_error, Address, Bytes, BytesN, Env};
 
-use crate::errors::ChainAddressError;
-use crate::events::{CHAIN_ADD, CHAIN_REM};
-use crate::registration::DataKey as CommitmentKey;
+use crate::errors::{ChainAddressError, CoreError};
+use crate::events::{shielded_add_event, CHAIN_ADD, CHAIN_REM};
+use crate::registration::{DataKey as CommitmentKey, Registration};
+use crate::storage;
 use crate::types::ChainType;
 
 #[contracttype]
@@ -91,5 +92,65 @@ impl AddressManager {
             ChainType::Solana => (32..=44).contains(&len),
             ChainType::Cosmos => (39..=45).contains(&len),
         }
+    }
+
+    pub fn add_stellar_address(
+        env: Env,
+        caller: Address,
+        username_hash: BytesN<32>,
+        stellar_address: Address,
+    ) {
+        caller.require_auth();
+
+        let owner = Registration::get_owner(env.clone(), username_hash.clone())
+            .unwrap_or_else(|| panic_with_error!(&env, CoreError::NotFound));
+
+        if owner != caller {
+            panic_with_error!(&env, CoreError::NotFound);
+        }
+
+        env.storage().persistent().set(
+            &storage::DataKey::StellarAddress(username_hash),
+            &stellar_address,
+        );
+    }
+
+    pub fn resolve_stellar(env: Env, username_hash: BytesN<32>) -> Address {
+        if Registration::get_owner(env.clone(), username_hash.clone()).is_none() {
+            panic_with_error!(&env, CoreError::NotFound);
+        }
+
+        env.storage()
+            .persistent()
+            .get::<storage::DataKey, Address>(&storage::DataKey::StellarAddress(username_hash))
+            .unwrap_or_else(|| panic_with_error!(&env, CoreError::NoAddressLinked))
+    }
+
+    pub fn add_shielded_address(
+        env: Env,
+        caller: Address,
+        username_hash: BytesN<32>,
+        address_commitment: BytesN<32>,
+    ) {
+        caller.require_auth();
+        let owner = Registration::get_owner(env.clone(), username_hash.clone())
+            .unwrap_or_else(|| panic_with_error!(&env, CoreError::NotFound));
+        if owner != caller {
+            panic_with_error!(&env, CoreError::Unauthorized);
+        }
+        storage::set_shielded_address(&env, &username_hash, &address_commitment);
+        #[allow(deprecated)]
+        env.events().publish(
+            (shielded_add_event(&env),),
+            (username_hash, address_commitment),
+        );
+    }
+
+    pub fn get_shielded_address(env: Env, username_hash: BytesN<32>) -> Option<BytesN<32>> {
+        storage::get_shielded_address(&env, &username_hash)
+    }
+
+    pub fn is_shielded(env: Env, username_hash: BytesN<32>) -> bool {
+        storage::has_shielded_address(&env, &username_hash)
     }
 }
