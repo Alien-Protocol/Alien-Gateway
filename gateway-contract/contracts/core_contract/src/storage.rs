@@ -2,6 +2,12 @@ use soroban_sdk::{contracttype, Address, BytesN, Env};
 
 use crate::types::PrivacyMode;
 
+/// TTL constants for persistent storage entries.
+/// Bump amount: ~30 days (at ~5s per ledger close).
+pub(crate) const PERSISTENT_BUMP_AMOUNT: u32 = 518_400;
+/// Lifetime threshold: ~7 days — entries are extended when remaining TTL drops below this.
+pub(crate) const PERSISTENT_LIFETIME_THRESHOLD: u32 = 120_960;
+
 /// Storage keys for the Core contract's persistent and instance storage.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -21,9 +27,13 @@ pub enum DataKey {
 }
 
 pub fn set_privacy_mode(env: &Env, username_hash: &BytesN<32>, mode: &PrivacyMode) {
-    env.storage()
-        .persistent()
-        .set(&DataKey::PrivacyMode(username_hash.clone()), mode);
+    let key = DataKey::PrivacyMode(username_hash.clone());
+    env.storage().persistent().set(&key, mode);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn get_privacy_mode(env: &Env, username_hash: &BytesN<32>) -> PrivacyMode {
@@ -46,9 +56,13 @@ pub fn is_initialized(env: &Env) -> bool {
 }
 
 pub fn set_shielded_address(env: &Env, username_hash: &BytesN<32>, commitment: &BytesN<32>) {
-    env.storage()
-        .persistent()
-        .set(&DataKey::ShieldedAddress(username_hash.clone()), commitment);
+    let key = DataKey::ShieldedAddress(username_hash.clone());
+    env.storage().persistent().set(&key, commitment);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn get_shielded_address(env: &Env, username_hash: &BytesN<32>) -> Option<BytesN<32>> {

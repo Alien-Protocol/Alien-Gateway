@@ -1,6 +1,12 @@
 use crate::types::{AuctionStatus, DataKey};
 use soroban_sdk::{Address, Env};
 
+/// TTL constants for persistent storage entries.
+/// Bump amount: ~30 days (at ~5s per ledger close).
+pub(crate) const PERSISTENT_BUMP_AMOUNT: u32 = 518_400;
+/// Lifetime threshold: ~7 days — entries are extended when remaining TTL drops below this.
+pub(crate) const PERSISTENT_LIFETIME_THRESHOLD: u32 = 120_960;
+
 pub fn get_status(env: &Env) -> AuctionStatus {
     env.storage()
         .instance()
@@ -66,9 +72,13 @@ pub fn auction_get_status(env: &Env, id: u32) -> crate::types::AuctionStatus {
 }
 
 pub fn auction_set_status(env: &Env, id: u32, status: crate::types::AuctionStatus) {
-    env.storage()
-        .persistent()
-        .set(&AuctionKey::Status(id), &status);
+    let key = AuctionKey::Status(id);
+    env.storage().persistent().set(&key, &status);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn auction_get_seller(env: &Env, id: u32) -> Address {
@@ -79,9 +89,13 @@ pub fn auction_get_seller(env: &Env, id: u32) -> Address {
 }
 
 pub fn auction_set_seller(env: &Env, id: u32, seller: &Address) {
-    env.storage()
-        .persistent()
-        .set(&AuctionKey::Seller(id), seller);
+    let key = AuctionKey::Seller(id);
+    env.storage().persistent().set(&key, seller);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn auction_get_asset(env: &Env, id: u32) -> Address {
@@ -92,9 +106,13 @@ pub fn auction_get_asset(env: &Env, id: u32) -> Address {
 }
 
 pub fn auction_set_asset(env: &Env, id: u32, asset: &Address) {
-    env.storage()
-        .persistent()
-        .set(&AuctionKey::Asset(id), asset);
+    let key = AuctionKey::Asset(id);
+    env.storage().persistent().set(&key, asset);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn auction_get_min_bid(env: &Env, id: u32) -> i128 {
@@ -105,9 +123,13 @@ pub fn auction_get_min_bid(env: &Env, id: u32) -> i128 {
 }
 
 pub fn auction_set_min_bid(env: &Env, id: u32, min_bid: i128) {
-    env.storage()
-        .persistent()
-        .set(&AuctionKey::MinBid(id), &min_bid);
+    let key = AuctionKey::MinBid(id);
+    env.storage().persistent().set(&key, &min_bid);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn auction_get_end_time(env: &Env, id: u32) -> u64 {
@@ -118,9 +140,13 @@ pub fn auction_get_end_time(env: &Env, id: u32) -> u64 {
 }
 
 pub fn auction_set_end_time(env: &Env, id: u32, end_time: u64) {
-    env.storage()
-        .persistent()
-        .set(&AuctionKey::EndTime(id), &end_time);
+    let key = AuctionKey::EndTime(id);
+    env.storage().persistent().set(&key, &end_time);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn auction_get_highest_bidder(env: &Env, id: u32) -> Option<Address> {
@@ -130,9 +156,13 @@ pub fn auction_get_highest_bidder(env: &Env, id: u32) -> Option<Address> {
 }
 
 pub fn auction_set_highest_bidder(env: &Env, id: u32, bidder: &Address) {
-    env.storage()
-        .persistent()
-        .set(&AuctionKey::HighestBidder(id), bidder);
+    let key = AuctionKey::HighestBidder(id);
+    env.storage().persistent().set(&key, bidder);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn auction_get_highest_bid(env: &Env, id: u32) -> i128 {
@@ -143,9 +173,13 @@ pub fn auction_get_highest_bid(env: &Env, id: u32) -> i128 {
 }
 
 pub fn auction_set_highest_bid(env: &Env, id: u32, bid: i128) {
-    env.storage()
-        .persistent()
-        .set(&AuctionKey::HighestBid(id), &bid);
+    let key = AuctionKey::HighestBid(id);
+    env.storage().persistent().set(&key, &bid);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn auction_is_claimed(env: &Env, id: u32) -> bool {
@@ -156,7 +190,11 @@ pub fn auction_is_claimed(env: &Env, id: u32) -> bool {
 }
 
 pub fn auction_set_claimed(env: &Env, id: u32) {
-    env.storage()
-        .persistent()
-        .set(&AuctionKey::Claimed(id), &true);
+    let key = AuctionKey::Claimed(id);
+    env.storage().persistent().set(&key, &true);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }

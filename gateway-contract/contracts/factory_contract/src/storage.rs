@@ -2,6 +2,12 @@ use soroban_sdk::{contracttype, Address, BytesN, Env};
 
 use crate::types::{DeployConfig, UsernameRecord};
 
+/// TTL constants for persistent storage entries.
+/// Bump amount: ~30 days (at ~5s per ledger close).
+pub(crate) const PERSISTENT_BUMP_AMOUNT: u32 = 518_400;
+/// Lifetime threshold: ~7 days — entries are extended when remaining TTL drops below this.
+pub(crate) const PERSISTENT_LIFETIME_THRESHOLD: u32 = 120_960;
+
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
@@ -36,9 +42,13 @@ pub fn get_core_contract(env: &Env) -> Option<Address> {
 }
 
 pub fn set_username(env: &Env, hash: &BytesN<32>, record: &UsernameRecord) {
-    env.storage()
-        .persistent()
-        .set(&DataKey::Username(hash.clone()), record);
+    let key = DataKey::Username(hash.clone());
+    env.storage().persistent().set(&key, record);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 pub fn get_username(env: &Env, hash: &BytesN<32>) -> Option<UsernameRecord> {
@@ -62,5 +72,11 @@ pub fn get_config(env: &Env) -> Option<DeployConfig> {
 
 #[allow(dead_code)]
 pub fn set_config(env: &Env, config: &DeployConfig) {
-    env.storage().persistent().set(&DataKey::Config, config);
+    let key = DataKey::Config;
+    env.storage().persistent().set(&key, config);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }

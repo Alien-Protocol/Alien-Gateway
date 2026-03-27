@@ -82,6 +82,12 @@ impl Contract {
         };
     
         env.storage().persistent().set(&key, &data);
+        env.storage().persistent().extend_ttl(
+            &key,
+            storage::PERSISTENT_LIFETIME_THRESHOLD,
+            storage::PERSISTENT_BUMP_AMOUNT,
+        );
+
         smt_root::SmtRoot::update_root(&env, public_signals.new_root);
     
         #[allow(deprecated)]
@@ -90,16 +96,20 @@ impl Contract {
     }
 
     pub fn set_memo(env: Env, commitment: BytesN<32>, memo_id: u64) {
+        let key = storage::DataKey::Resolver(commitment);
         let mut data = env
             .storage()
             .persistent()
-            .get::<storage::DataKey, ResolveData>(&storage::DataKey::Resolver(commitment.clone()))
+            .get::<storage::DataKey, ResolveData>(&key)
             .unwrap_or_else(|| panic_with_error!(&env, CoreError::NotFound));
 
         data.memo = Some(memo_id);
-        env.storage()
-            .persistent()
-            .set(&storage::DataKey::Resolver(commitment), &data);
+        env.storage().persistent().set(&key, &data);
+        env.storage().persistent().extend_ttl(
+            &key,
+            storage::PERSISTENT_LIFETIME_THRESHOLD,
+            storage::PERSISTENT_BUMP_AMOUNT,
+        );
     }
 
     pub fn set_privacy_mode(env: Env, username_hash: BytesN<32>, mode: PrivacyMode) {
@@ -185,9 +195,12 @@ impl Contract {
             panic_with_error!(&env, CoreError::NotFound);
         }
 
-        env.storage().persistent().set(
-            &storage::DataKey::StellarAddress(username_hash),
-            &stellar_address,
+        let key = storage::DataKey::StellarAddress(username_hash);
+        env.storage().persistent().set(&key, &stellar_address);
+        env.storage().persistent().extend_ttl(
+            &key,
+            storage::PERSISTENT_LIFETIME_THRESHOLD,
+            storage::PERSISTENT_BUMP_AMOUNT,
         );
     }
 
@@ -219,6 +232,11 @@ impl Contract {
         }
 
         env.storage().persistent().set(&key, &new_owner);
+        env.storage().persistent().extend_ttl(
+            &key,
+            storage::PERSISTENT_LIFETIME_THRESHOLD,
+            storage::PERSISTENT_BUMP_AMOUNT,
+        );
 
         #[allow(deprecated)]
         env.events()
@@ -269,6 +287,11 @@ impl Contract {
 
         // Update ownership
         env.storage().persistent().set(&key, &new_owner);
+        env.storage().persistent().extend_ttl(
+            &key,
+            storage::PERSISTENT_LIFETIME_THRESHOLD,
+            storage::PERSISTENT_BUMP_AMOUNT,
+        );
 
         // Advance SMT root
         smt_root::SmtRoot::update_root(&env, public_signals.new_root);
