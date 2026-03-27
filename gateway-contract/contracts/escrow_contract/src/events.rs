@@ -165,4 +165,19 @@ impl Events {
         }
         .publish(env);
     }
+
+    /// Emits a DEPOSIT event with topics (symbol!("DEPOSIT"), commitment)
+    /// and data (owner, amount, new_balance).
+    pub fn deposit(
+        env: &Env,
+        commitment: BytesN<32>,
+        owner: Address,
+        amount: i128,
+        new_balance: i128,
+    ) {
+        env.events().publish(
+            (symbol_short!("DEPOSIT"), commitment),
+            (owner, amount, new_balance),
+        );
+    }
 }
