@@ -14,6 +14,7 @@ BUILD_DIR="$ZK_DIR/build"
 
 CIRCUITS=(
   "merkle_inclusion"
+  "merkle_non_inclusion"
   "merkle_update"
   "merkle_update_proof"
   "username_merkle"

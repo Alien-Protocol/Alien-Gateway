@@ -1,13 +1,14 @@
 #![cfg(test)]
 
+use crate::registration::DataKey as RegistrationKey;
 use crate::smt_root::SmtRoot;
 use crate::types::{AddressMetadata, ChainType, PrivacyMode, PublicSignals};
 use crate::{Contract, ContractClient};
 use escrow_contract::types::{
     AutoPay, ScheduledPayment as EscrowScheduledPayment, VaultConfig, VaultState,
 };
-use soroban_sdk::testutils::{Address as _, Events};
-use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Symbol};
+use soroban_sdk::testutils::{Address as _, Events, MockAuth, MockAuthInvoke};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, IntoVal, Symbol, Val, Vec};
 
 fn setup(env: &Env) -> (Address, ContractClient<'_>) {
     let contract_id = env.register(Contract, ());
@@ -237,7 +238,17 @@ fn test_set_memo_and_resolve_flow() {
 }
 
 #[test]
-fn test_privacy_mode_resolve_shields_registered_wallet() {
+fn test_get_privacy_mode_defaults_to_normal() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+    let hash = commitment(&env, 39);
+
+    assert_eq!(client.get_privacy_mode(&hash), PrivacyMode::Normal);
+}
+
+#[test]
+fn test_set_privacy_mode_to_shielded() {
     let env = Env::default();
     env.mock_all_auths();
     let (contract_id, client, root) = setup_with_root(&env);
@@ -259,17 +270,17 @@ fn test_privacy_mode_resolve_shields_registered_wallet() {
     assert_eq!(client.get_privacy_mode(&hash), PrivacyMode::Normal);
     assert_eq!(client.resolve(&hash), (owner.clone(), None));
 
-    client.set_privacy_mode(&hash, &PrivacyMode::Private);
+    client.set_privacy_mode(&hash, &PrivacyMode::Shielded);
 
-    assert_eq!(client.get_privacy_mode(&hash), PrivacyMode::Private);
+    assert_eq!(client.get_privacy_mode(&hash), PrivacyMode::Shielded);
     assert_eq!(client.resolve(&hash), (contract_id, None));
 }
 
 #[test]
-fn test_privacy_mode_can_be_restored_to_normal() {
+fn test_set_privacy_mode_to_normal() {
     let env = Env::default();
     env.mock_all_auths();
-    let (contract_id, client, root) = setup_with_root(&env);
+    let (_, client, root) = setup_with_root(&env);
     let owner = Address::generate(&env);
     let hash = commitment(&env, 42);
     let new_root = BytesN::from_array(&env, &[43u8; 32]);
@@ -285,11 +296,46 @@ fn test_privacy_mode_can_be_restored_to_normal() {
         },
     );
 
-    client.set_privacy_mode(&hash, &PrivacyMode::Private);
-    assert_eq!(client.resolve(&hash), (contract_id, None));
+    client.set_privacy_mode(&hash, &PrivacyMode::Shielded);
+    assert_eq!(client.get_privacy_mode(&hash), PrivacyMode::Shielded);
 
     client.set_privacy_mode(&hash, &PrivacyMode::Normal);
-    assert_eq!(client.resolve(&hash), (owner, None));
+    assert_eq!(client.get_privacy_mode(&hash), PrivacyMode::Normal);
+}
+
+#[test]
+fn test_set_privacy_mode_non_owner_rejected() {
+    let env = Env::default();
+    let (contract_id, client) = setup(&env);
+    let owner = Address::generate(&env);
+    let attacker = Address::generate(&env);
+    let hash = commitment(&env, 44);
+
+    env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .set(&RegistrationKey::Commitment(hash.clone()), &owner);
+    });
+
+    let args: Vec<Val> = (hash.clone(), PrivacyMode::Shielded).into_val(&env);
+    env.mock_auths(&[MockAuth {
+        address: &attacker,
+        invoke: &MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "set_privacy_mode",
+            args: args.clone(),
+            sub_invokes: &[],
+        },
+    }]);
+
+    let result = env.try_invoke_contract::<(), soroban_sdk::Error>(
+        &contract_id,
+        &Symbol::new(&env, "set_privacy_mode"),
+        args,
+    );
+
+    assert!(result.is_err());
+    assert_eq!(client.get_privacy_mode(&hash), PrivacyMode::Normal);
 }
 
 // ── resolve_stellar tests ─────────────────────────────────────────────────────
