@@ -1,1 +1,13 @@
-export const SDK_VERSION = "0.1.0";
+export { MerkleProofGenerator } from "./proof";
+export type {
+  CircuitArtifactPaths,
+  Groth16Proof,
+  InclusionInput,
+  InclusionProofResult,
+  InclusionPublicSignals,
+  MerkleProofGeneratorConfig,
+  NonInclusionInput,
+  NonInclusionProofResult,
+  NonInclusionPublicSignals,
+  SignalInput,
+} from "./types";

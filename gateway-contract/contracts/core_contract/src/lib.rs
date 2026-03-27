@@ -14,7 +14,7 @@ mod test;
 
 use address_manager::AddressManager;
 use errors::CoreError;
-use events::{REGISTER_EVENT, TRANSFER_EVENT};
+use events::{privacy_set_event, REGISTER_EVENT, TRANSFER_EVENT};
 use registration::Registration;
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Bytes, BytesN, Env};
 use types::{ChainType, PrivacyMode, PublicSignals, ResolveData};
@@ -80,11 +80,19 @@ impl Contract {
     }
 
     pub fn set_privacy_mode(env: Env, username_hash: BytesN<32>, mode: PrivacyMode) {
-        AddressManager::set_privacy_mode(env, username_hash, mode);
+        let owner = Registration::get_owner(env.clone(), username_hash.clone())
+            .unwrap_or_else(|| panic_with_error!(&env, CoreError::NotFound));
+        owner.require_auth();
+
+        storage::set_privacy_mode(&env, &username_hash, &mode);
+
+        #[allow(deprecated)]
+        env.events()
+            .publish((privacy_set_event(&env),), (username_hash, mode));
     }
 
     pub fn get_privacy_mode(env: Env, username_hash: BytesN<32>) -> PrivacyMode {
-        AddressManager::get_privacy_mode(env, username_hash)
+        storage::get_privacy_mode(&env, &username_hash)
     }
 
     pub fn resolve(env: Env, commitment: BytesN<32>) -> (Address, Option<u64>) {
@@ -94,8 +102,7 @@ impl Contract {
             .get::<storage::DataKey, ResolveData>(&storage::DataKey::Resolver(commitment.clone()))
         {
             Some(data) => {
-                if AddressManager::get_privacy_mode(env.clone(), commitment) == PrivacyMode::Private
-                {
+                if storage::get_privacy_mode(&env, &commitment) == PrivacyMode::Shielded {
                     (env.current_contract_address(), data.memo)
                 } else {
                     (data.wallet, data.memo)
