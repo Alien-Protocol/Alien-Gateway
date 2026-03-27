@@ -64,13 +64,11 @@ impl Contract {
         // ✅ CRITICAL FIX: enforce authentication FIRST
         caller.require_auth();
         let key = storage::DataKey::Resolver(commitment.clone());
-    
         if env.storage().persistent().has(&key) {
             panic_with_error!(&env, CoreError::DuplicateCommitment);
         }
         let current_root = smt_root::SmtRoot::get_root(env.clone())
             .unwrap_or_else(|| panic_with_error!(&env, CoreError::RootNotSet));
-    
         if public_signals.old_root != current_root {
             panic_with_error!(&env, CoreError::StaleRoot);
         }
@@ -84,7 +82,6 @@ impl Contract {
         };
     
         env.storage().persistent().set(&key, &data);
-
         smt_root::SmtRoot::update_root(&env, public_signals.new_root);
     
         #[allow(deprecated)]
