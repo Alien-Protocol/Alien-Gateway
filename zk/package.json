@@ -1,6 +1,8 @@
 {
   "name": "zk",
   "version": "1.0.0",
+  "private": true,
+  "workspaces": ["sdk"],
   "description": "",
   "main": "scripts/verify_proof.ts",
   "scripts": {

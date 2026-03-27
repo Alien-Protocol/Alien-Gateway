@@ -18,3 +18,7 @@ pub const SCHED_PAY: Symbol = symbol_short!("SCHED_PAY");
 pub fn privacy_set_event(env: &Env) -> Symbol {
     Symbol::new(env, "PRIVACY_SET")
 }
+
+pub fn shielded_add_event(env: &Env) -> Symbol {
+    Symbol::new(env, "SHIELDED_ADD")
+}

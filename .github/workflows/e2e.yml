@@ -16,6 +16,8 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: zk/package-lock.json   
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -32,10 +34,13 @@ jobs:
         working-directory: ./zk
         run: npm ci
 
+      - name: Add node_modules to PATH
+        working-directory: ./zk
+        run: echo "$(pwd)/node_modules/.bin" >> $GITHUB_PATH
+
       - name: Compile Circuits
         working-directory: ./zk
         run: |
-          export PATH="./node_modules/.bin:$PATH"
           ./scripts/compile.sh
           ./scripts/trusted-setup.sh
 

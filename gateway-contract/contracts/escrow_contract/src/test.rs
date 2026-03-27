@@ -538,3 +538,63 @@ fn test_get_balance_after_payment() {
     // Balance should reflect the reserved funds
     assert_eq!(client.get_balance(&from), Some(initial - amount));
 }
+
+// ─── auto-pay storage isolation tests ────────────────────────────────────────
+
+/// Registers one auto-pay rule on each of two different vaults and confirms
+/// that neither rule is visible when looking up the other vault's commitment.
+/// This validates that the composite key (commitment, rule_id) fully isolates
+/// rules across vaults even when the global rule_id counter produces the same
+/// numeric ID for each.
+#[test]
+fn test_auto_pay_multiple_vaults_no_interference() {
+    use crate::storage::{read_auto_pay, write_auto_pay};
+    use crate::types::AutoPay;
+
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, _client, token, _token_admin, _from, _to) = setup_test(&env);
+
+    let vault_a = BytesN::from_array(&env, &[0xAAu8; 32]);
+    let vault_b = BytesN::from_array(&env, &[0xBBu8; 32]);
+
+    let rule_a = AutoPay {
+        from: vault_a.clone(),
+        to: vault_b.clone(),
+        token: token.clone(),
+        amount: 100,
+        interval: 86_400,
+        last_paid: 0,
+    };
+    let rule_b = AutoPay {
+        from: vault_b.clone(),
+        to: vault_a.clone(),
+        token: token.clone(),
+        amount: 200,
+        interval: 43_200,
+        last_paid: 0,
+    };
+
+    // Both rules share rule_id = 0 (simulating the global counter starting at 0
+    // for each vault). The composite key must keep them isolated.
+    env.as_contract(&contract_id, || {
+        write_auto_pay(&env, &vault_a, 0, &rule_a);
+        write_auto_pay(&env, &vault_b, 0, &rule_b);
+    });
+
+    env.as_contract(&contract_id, || {
+        // Vault A's rule is retrievable under vault A's commitment.
+        let stored_a = read_auto_pay(&env, &vault_a, 0).expect("rule for vault_a not found");
+        assert_eq!(stored_a.amount, 100);
+        assert_eq!(stored_a.interval, 86_400);
+
+        // Vault B's rule is retrievable under vault B's commitment.
+        let stored_b = read_auto_pay(&env, &vault_b, 0).expect("rule for vault_b not found");
+        assert_eq!(stored_b.amount, 200);
+        assert_eq!(stored_b.interval, 43_200);
+
+        // Vault A's commitment does NOT return vault B's rule, and vice versa.
+        assert_ne!(stored_a.amount, stored_b.amount);
+        assert_ne!(stored_a.from, stored_b.from);
+    });
+}
