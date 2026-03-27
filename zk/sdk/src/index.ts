@@ -11,3 +11,4 @@ export type {
   NonInclusionPublicSignals,
   SignalInput,
 } from "./types";
+export * from "./availability";
