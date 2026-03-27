@@ -3,8 +3,8 @@
 extern crate std;
 
 use soroban_sdk::{
-    testutils::{Address as AddressUtil, AuthorizedFunction, AuthorizedInvocation},
-    Address, Env, IntoVal,
+    testutils::Address as AddressUtil,
+    Address, Env,
 };
 
 use crate::contract_core::auth;

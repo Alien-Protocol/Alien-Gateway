@@ -1,9 +1,14 @@
 #![no_std]
 
+mod address_manager;
 pub mod contract_core;
-
-#[cfg(test)]
-mod test;
+mod errors;
+mod events;
+mod registration;
+mod smt_root;
+mod storage;
+mod types;
+mod zk_verifier;
 
 #[cfg(test)]
 mod test;
