@@ -1,13 +1,14 @@
 #![no_std]
 
-pub mod address_manager;
-pub mod errors;
-pub mod events;
-pub mod registration;
-pub mod smt_root;
-pub mod storage;
-pub mod types;
-pub mod zk_verifier;
+mod address_manager;
+pub mod contract_core;
+mod errors;
+mod events;
+mod registration;
+mod smt_root;
+mod storage;
+mod types;
+mod zk_verifier;
 
 #[cfg(test)]
 mod test;
