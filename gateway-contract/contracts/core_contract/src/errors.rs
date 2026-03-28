@@ -22,6 +22,8 @@ pub enum CoreError {
     SameOwner = 8,
     /// initialize() has already been called on this contract instance.
     AlreadyInitialized = 9,
+    /// Commitment is already registered via register().
+    AlreadyRegistered = 10,
 }
 
 #[contracterror]
