@@ -988,3 +988,64 @@ fn test_cancel_vault_non_owner_panics() {
         }])
         .cancel_vault(&from);
 }
+
+// ─── get_auto_pay tests ──────────────────────────────────────────────
+
+/// Verifies that `get_auto_pay` returns `Some(AutoPay)` with the correct fields
+/// immediately after `setup_auto_pay` has been called.
+#[test]
+fn test_get_auto_pay_returns_rule_after_setup() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    let amount = 250i128;
+    let interval = 86_400u64; // 1 day in seconds
+
+    // Create a funded vault so setup_auto_pay can verify it exists.
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+
+    // Register the auto-pay rule and capture the assigned rule_id.
+    let rule_id = client.setup_auto_pay(&from, &to, &amount, &interval);
+
+    // get_auto_pay must return Some with matching fields.
+    let result = client.get_auto_pay(&from, &rule_id);
+    assert!(result.is_some(), "expected Some(AutoPay) after setup_auto_pay");
+
+    let rule = result.unwrap();
+    assert_eq!(rule.from, from);
+    assert_eq!(rule.to, to);
+    assert_eq!(rule.amount, amount);
+    assert_eq!(rule.interval, interval);
+    assert_eq!(rule.last_paid, 0);
+}
+
+/// Verifies that `get_auto_pay` returns `None` for a rule_id that was never
+/// created, confirming the function does not fabricate data.
+#[test]
+fn test_get_auto_pay_returns_none_for_unknown_rule() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
+
+    // Create a vault but deliberately do NOT call setup_auto_pay.
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+
+    // rule_id 999 was never registered — must return None.
+    let result = client.get_auto_pay(&from, &999u32);
+    assert!(result.is_none(), "expected None for an unregistered rule_id");
+}
