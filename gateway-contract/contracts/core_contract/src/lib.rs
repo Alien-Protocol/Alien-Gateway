@@ -19,7 +19,7 @@ use address_manager::AddressManager;
 use admin::Admin;
 use registration::Registration;
 use resolver::Resolver;
-use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env};
+use soroban_sdk::{contract, contractimpl, symbol_short, Address, Bytes, BytesN, Env, Symbol};
 use transfer::Transfer;
 use types::{ChainType, PrivacyMode, PublicSignals};
 
@@ -39,6 +39,7 @@ impl Contract {
     pub fn resolve(e: Env, c: BytesN<32>) -> (Address, Option<u64>) { Resolver::resolve(e, c) }
     pub fn register(e: Env, c: Address, h: BytesN<32>) { Registration::register(e, c, h) }
     pub fn get_owner(e: Env, h: BytesN<32>) -> Option<Address> { Registration::get_owner(e, h) }
+    pub fn get_username(e: Env) -> Option<Symbol> { e.storage().instance().get(&symbol_short!("Username")) }
     pub fn add_chain_address(e: Env, c: Address, h: BytesN<32>, t: ChainType, a: Bytes) { AddressManager::add_chain_address(e, c, h, t, a); }
     pub fn get_chain_address(e: Env, h: BytesN<32>, t: ChainType) -> Option<Bytes> { AddressManager::get_chain_address(e, h, t) }
     pub fn remove_chain_address(e: Env, c: Address, h: BytesN<32>, t: ChainType) { AddressManager::remove_chain_address(e, c, h, t); }

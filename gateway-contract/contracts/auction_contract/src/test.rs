@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Events, Ledger},
@@ -32,7 +30,7 @@ fn test_claim_username_success() {
     });
     client.claim_username(&username_hash, &claimer);
     let events = env.events().all();
-    assert!(events.len() > 0);
+    assert!(!events.is_empty());
 }
 
 #[test]
@@ -202,7 +200,7 @@ fn test_close_auction_emits_event() {
         l.timestamp = 2000;
     });
     client.close_auction(&username_hash);
-    assert!(env.events().all().len() > 0);
+    assert!(!env.events().all().is_empty());
 }
 
 // ── new lifecycle tests (issue #101) ─────────────────────────────────────────

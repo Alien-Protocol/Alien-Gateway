@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use crate::errors::EscrowError;
 use crate::types::{DataKey, ScheduledPayment, VaultConfig, VaultState};
 use crate::EscrowContract;
@@ -7,9 +5,7 @@ use crate::EscrowContractClient;
 use soroban_sdk::testutils::{Address as _, Events as _, Ledger, MockAuth, MockAuthInvoke};
 use soroban_sdk::token::{Client as TokenClient, StellarAssetClient};
 
-use soroban_sdk::{
-    contract, contractimpl, Address, BytesN, Env, Error, IntoVal, Symbol, TryFromVal,
-};
+use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Error, IntoVal};
 
 // ---------------------------------------------------------------------------
 // Mock Registration contract — exposes get_owner / set_owner for tests.
@@ -86,15 +82,6 @@ fn mint_token(env: &Env, token: &Address, token_admin: &Address, to: &Address, a
     let admin_client = StellarAssetClient::new(env, token);
     admin_client.mock_all_auths().mint(to, &amount);
     assert_eq!(admin_client.admin(), *token_admin);
-}
-
-fn read_vault(env: &Env, contract_id: &Address, id: &BytesN<32>) -> VaultState {
-    env.as_contract(contract_id, || {
-        env.storage()
-            .persistent()
-            .get(&DataKey::Vault(id.clone()))
-            .unwrap()
-    })
 }
 
 #[test]
