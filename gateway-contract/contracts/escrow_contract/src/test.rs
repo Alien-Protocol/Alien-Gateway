@@ -4,11 +4,9 @@ use crate::errors::EscrowError;
 use crate::types::{DataKey, ScheduledPayment, VaultConfig, VaultState};
 use crate::EscrowContract;
 use crate::EscrowContractClient;
-use soroban_sdk::testutils::{Address as _, Events as _, Ledger};
+use soroban_sdk::testutils::{Address as _, BytesN as _, Events as _, Ledger};
 use soroban_sdk::token::{Client as TokenClient, StellarAssetClient};
-use soroban_sdk::{
-    contract, contractimpl, symbol_short, Address, BytesN, Env, Error, IntoVal, Symbol, TryFromVal,
-};
+use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Error, IntoVal, Symbol};
 
 // ---------------------------------------------------------------------------
 // Mock Registration contract — exposes get_owner / set_owner for tests.
@@ -738,22 +736,26 @@ fn test_withdraw_reduces_balance() {
     let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
 
     let owner = Address::generate(&env);
-    let commitment = BytesN::random(&env);
+    let commitment = BytesN::from_array(&env, &[0; 32]);
 
-    create_vault(&env, &contract_id, &commitment, &owner, &token, 100);
+    // Start with empty vault, deposit 100 then withdraw 40 => expect 60
+    create_vault(&env, &contract_id, &commitment, &owner, &token, 0);
 
-    // Deposit 100
     env.mock_all_auths();
+    let token_admin_client = StellarAssetClient::new(&env, &token);
+    token_admin_client.mint(&owner, &100);
+
     client.deposit(&commitment, &100);
 
     // Withdraw 40
     client.withdraw(&commitment, &40);
 
-    let state: VaultState = env
-        .storage()
-        .instance()
-        .get(&DataKey::VaultState(commitment.clone()))
-        .unwrap();
+    let state: VaultState = env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .get(&DataKey::VaultState(commitment.clone()))
+            .unwrap()
+    });
 
     assert_eq!(state.balance, 60);
 }
@@ -766,19 +768,23 @@ fn test_withdraw_full_balance() {
     let owner = Address::generate(&env);
     let commitment = BytesN::random(&env);
 
-    create_vault(&env, &contract_id, &commitment, &owner, &token, 100);
+    create_vault(&env, &contract_id, &commitment, &owner, &token, 0);
 
     env.mock_all_auths();
+    let token_admin_client = StellarAssetClient::new(&env, &token);
+    token_admin_client.mint(&owner, &100);
+
     client.deposit(&commitment, &100);
 
     // Withdraw full amount
     client.withdraw(&commitment, &100);
 
-    let state: VaultState = env
-        .storage()
-        .instance()
-        .get(&DataKey::VaultState(commitment.clone()))
-        .unwrap();
+    let state: VaultState = env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .get(&DataKey::VaultState(commitment.clone()))
+            .unwrap()
+    });
 
     assert_eq!(state.balance, 0);
 }
@@ -793,9 +799,12 @@ fn test_withdraw_overdraft_panics() {
     let owner = Address::generate(&env);
     let commitment = BytesN::random(&env);
 
-    create_vault(&env, &contract_id, &commitment, &owner, &token, 100);
+    create_vault(&env, &contract_id, &commitment, &owner, &token, 0);
 
     env.mock_all_auths();
+    let token_admin_client = StellarAssetClient::new(&env, &token);
+    token_admin_client.mint(&owner, &100);
+
     client.deposit(&commitment, &100);
 
     // Withdraw more than balance
@@ -817,7 +826,6 @@ fn test_withdraw_non_owner_panics() {
     client.withdraw(&commitment, &50);
 }
 #[test]
-#[should_panic(expected = "Vault is not active")]
 fn test_withdraw_inactive_vault_panics() {
     let env = Env::default();
 
@@ -826,23 +834,33 @@ fn test_withdraw_inactive_vault_panics() {
     let owner = Address::generate(&env);
     let commitment = BytesN::random(&env);
 
-    create_vault(&env, &contract_id, &commitment, &owner, &token, 100);
+    create_vault(&env, &contract_id, &commitment, &owner, &token, 0);
 
     env.mock_all_auths();
+    let token_admin_client = StellarAssetClient::new(&env, &token);
+    token_admin_client.mint(&owner, &100);
+
     client.deposit(&commitment, &100);
 
     // Simulate cancel_vault → deactivate
-    let mut state: VaultState = env
-        .storage()
-        .instance()
-        .get(&DataKey::VaultState(commitment.clone()))
-        .unwrap();
+    let mut state: VaultState = env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .get(&DataKey::VaultState(commitment.clone()))
+            .unwrap()
+    });
 
     state.is_active = false;
-    env.storage()
-        .instance()
-        .set(&DataKey::VaultState(commitment.clone()), &state);
+    env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .set(&DataKey::VaultState(commitment.clone()), &state);
+    });
 
     // Withdraw should fail
-    client.withdraw(&commitment, &50);
+    let result = client.try_withdraw(&commitment, &50);
+    assert!(matches!(
+        result,
+        Err(Ok(err)) if err == Error::from_contract_error(EscrowError::VaultInactive as u32)
+    ));
 }

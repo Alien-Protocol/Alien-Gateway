@@ -116,35 +116,69 @@ impl EscrowContract {
     /// - `VaultInactive`: If the vault is inactive.
     /// - `InvalidAmount`: If amount is <= 0.
     pub fn deposit(env: Env, commitment: BytesN<32>, amount: i128) {
-        // 1. Load config and state. Panic if not found.
+        if amount <= 0 {
+            panic_with_error!(&env, EscrowError::InvalidAmount);
+        }
+
+        let config = read_vault_config(&env, &commitment)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+        let mut state = read_vault_state(&env, &commitment)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+
+        config.owner.require_auth();
+
+        if !state.is_active {
+            panic_with_error!(&env, EscrowError::VaultInactive);
+        }
+
+        // Update state
+        state.balance += amount;
+        write_vault_state(&env, &commitment, &state);
+
+        // Emit DEPOSIT event
+        Events::deposit(&env, commitment, amount, state.balance);
+
+        // Transfer tokens from caller to the contract
+        let token_client = token::Client::new(&env, &config.token);
+        token_client.transfer(&config.owner, &env.current_contract_address(), &amount);
+    }
+
+    /// Withdraws tokens from an existing vault.
+    ///
+    /// The caller must be the vault owner.
+    pub fn withdraw(env: Env, commitment: BytesN<32>, amount: i128) {
+        if amount <= 0 {
+            panic!("Amount must be greater than 0");
+        }
+
         let config = read_vault_config(&env, &commitment)
             .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
 
         let mut state = read_vault_state(&env, &commitment)
             .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
 
-        // 2. Auth: Only the owner can deposit.
-        config.owner.require_auth();
-
-        // 3. Validate.
         if !state.is_active {
             panic_with_error!(&env, EscrowError::VaultInactive);
         }
 
-        if amount <= 0 {
-            panic_with_error!(&env, EscrowError::InvalidAmount);
+        config.owner.require_auth();
+
+        if amount > state.balance {
+            panic!("Insufficient balance");
         }
 
-        // 4. Update state.
-        state.balance += amount;
+        let token_client = token::Client::new(&env, &config.token);
+
+        token_client.transfer(
+            &env.current_contract_address(),
+            &config.owner,
+            &amount,
+        );
+
+        state.balance -= amount;
         write_vault_state(&env, &commitment, &state);
 
-        // 5. Emit DEPOSIT event.
-        Events::deposit(&env, commitment, amount, state.balance);
-
-        // 6. Transfer tokens from caller to the contract.
-        let token_client = token::Client::new(&env, &config.token);
-        token_client.transfer(&config.owner, &env.current_contract_address(), &amount);
+        Events::withdraw(&env, commitment, amount, state.balance);
     }
 
     /// Schedules a payment from one vault to another.

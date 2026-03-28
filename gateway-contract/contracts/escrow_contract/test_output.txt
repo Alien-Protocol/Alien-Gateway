@@ -1,102 +1,411 @@
-warning: use of deprecated method `soroban_sdk::events::Events::publish`: use the #[contractevent] macro on a contract event type
-   --> contracts\escrow_contract\src\events.rs:173:14
-    |
-173 |             .publish((symbol_short!("DEPOSIT"), commitment), (amount, new_balance));
-    |              ^^^^^^^
-    |
-    = note: `#[warn(deprecated)]` on by default
-
-warning: use of deprecated method `soroban_sdk::Env::register_stellar_asset_contract`: use [Env::register_stellar_asset_contract_v2]
-  --> contracts\escrow_contract\src\test.rs:47:21
+﻿cargo :    Compiling 
+escrow_contract v0.0.0 
+(C:\Users\amarjeet patel\D
+esktop\myfolder222\Alien-G
+ateway\gateway-contract\co
+ntracts\escrow_contract)
+At line:1 char:1
++ cargo test -p 
+escrow_contract *>&1 | 
+Out-File -FilePath 
+'test_output. ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (   
+    Compiling es...scro   
+ w_contract):String) [    
+], RemoteException
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+error: cannot find 
+attribute `contractimpl` 
+in this scope
+  --> contracts\escrow_con
+tract\src\test.rs:17:3
    |
-47 |     let token = env.register_stellar_asset_contract(token_admin.clone());
-   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-warning: use of deprecated method `soroban_sdk::Env::register_stellar_asset_contract`: use [Env::register_stellar_asset_contract_v2]
-   --> contracts\escrow_contract\src\test.rs:340:21
-    |
-340 |     let token = env.register_stellar_asset_contract(token_admin);
-    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-warning: use of deprecated method `soroban_sdk::Env::register_stellar_asset_contract`: use [Env::register_stellar_asset_contract_v2]
-   --> contracts\escrow_contract\src\test.rs:417:21
-    |
-417 |     let token = env.register_stellar_asset_contract(token_admin);
-    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-warning: unreachable statement
-   --> contracts\escrow_contract\src\lib.rs:121:9
-    |
-119 |           panic!("DEBUG: Inside deposit");
-    |           ------------------------------- any code following this expression is unreachable
-120 |           // 1. Load config and state. Panic if not found.
-121 | /         let config = read_vault_config(&env, &commitment)
-122 | |             .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
-    | |____________________________________________________________________________________^ unreachable statement
-    |
-    = note: `#[warn(unreachable_code)]` (part of `#[warn(unused)]`) on by default
-
-warning: unused import: `IntoVal`
-  --> contracts\escrow_contract\src\test.rs:10:72
+17 | #[contractimpl]
+   |   ^^^^^^^^^^^^
    |
-10 |     contract, contractimpl, symbol_short, Address, BytesN, Env, Error, IntoVal, Symbol,
-   |                                                                        ^^^^^^^
+help: consider importing 
+one of these attribute 
+macros
    |
-   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
-
-warning: unused variable: `env`
-   --> contracts\escrow_contract\src\lib.rs:118:20
-    |
-118 |     pub fn deposit(env: Env, commitment: BytesN<32>, amount: i128) {
-    |                    ^^^ help: if this is intentional, prefix it with an underscore: `_env`
-    |
-    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
-
-warning: unused variable: `commitment`
-   --> contracts\escrow_contract\src\lib.rs:118:30
-    |
-118 |     pub fn deposit(env: Env, commitment: BytesN<32>, amount: i128) {
-    |                              ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_commitment`
-
-warning: unused variable: `amount`
-   --> contracts\escrow_contract\src\lib.rs:118:54
-    |
-118 |     pub fn deposit(env: Env, commitment: BytesN<32>, amount: i128) {
-    |                                                      ^^^^^^ help: if this is intentional, prefix it with an underscore: `_amount`
-
-warning: function `read_vault` is never used
-  --> contracts\escrow_contract\src\test.rs:82:4
+ 3 + use 
+crate::contractimpl;
    |
-82 | fn read_vault(env: &Env, contract_id: &Address, id: &BytesN<32>) -> VaultState {
-   |    ^^^^^^^^^^
+ 3 + use 
+soroban_sdk::contractimpl;
    |
-   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
 
-warning: `escrow_contract` (lib test) generated 10 warnings (run `cargo fix --lib -p escrow_contract --tests` to apply 3 suggestions)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.16s
-     Running unittests src\lib.rs (C:\Users\amarjeet patel\Desktop\myfolder222\Alien-Gateway\gateway-contract\target\debug\deps\escrow_contract-94baa64b1ac1cc88.exe)
+error: cannot find 
+attribute `contract` in 
+this scope
+  --> contracts\escrow_con
+tract\src\test.rs:14:3
+   |
+14 | #[contract]
+   |   ^^^^^^^^
+   |
+help: consider importing 
+one of these attribute 
+macros
+   |
+ 3 + use crate::contract;
+   |
+ 3 + use 
+soroban_sdk::contract;
+   |
 
-running 1 test
+warning: unused imports: 
+`IntoVal` and `Symbol`
+ --> contracts\escrow_cont
+ract\src\test.rs:9:48
+  |
+9 | use 
+soroban_sdk::{Address, 
+BytesN, Env, Error, 
+IntoVal, Symbol};
+  |                       
+                         
+^^^^^^^  ^^^^^^
+  |
+  = note: 
+`#[warn(unused_imports)]` 
+(part of 
+`#[warn(unused)]`) on by 
+default
 
-thread 'test::test_deposit_success' (22984) panicked at C:\Users\amarjeet patel\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-env-host-23.0.1\src\host.rs:861:9:
-HostError: Error(WasmVm, InvalidAction)
+warning: use of 
+deprecated method `soroban
+_sdk::Env::register_stella
+r_asset_contract`: use [En
+v::register_stellar_asset_
+contract_v2]
+  --> contracts\escrow_con
+tract\src\test.rs:44:21
+   |
+44 |     let token = env.r
+egister_stellar_asset_cont
+ract(token_admin.clone());
+   |                     ^
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^
+   |
+   = note: 
+`#[warn(deprecated)]` on 
+by default
 
-Event log (newest first):
-   0: [Diagnostic Event] topics:[error, Error(WasmVm, InvalidAction)], data:"escalating error to panic"
-   1: [Diagnostic Event] topics:[error, Error(WasmVm, InvalidAction)], data:["contract call failed", deposit, [Bytes(0000000000000000000000000000000000000000000000000000000000000000), 50]]
-   2: [Failed Diagnostic Event (not emitted)] contract:CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM, topics:[error, Error(WasmVm, InvalidAction)], data:"caught error from function"
-   3: [Failed Diagnostic Event (not emitted)] contract:CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM, topics:[log], data:["caught panic 'DEBUG: Inside deposit' from contract function 'Symbol(deposit)'", Bytes(0000000000000000000000000000000000000000000000000000000000000000), 50]
-   4: [Diagnostic Event] topics:[fn_call, CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM, deposit], data:[Bytes(0000000000000000000000000000000000000000000000000000000000000000), 50]
+error[E0277]: the trait 
+bound `MockRegistrationCon
+tract: Register` is not 
+satisfied
+   --> contracts\escrow_co
+ntract\src\test.rs:331:31
+    |
+331 |     let reg_id = env
+.register(MockRegistration
+Contract, ());
+    |                     
+ -------- 
+^^^^^^^^^^^^^^^^^^^^^^^^ 
+unsatisfied trait bound
+    |                     
+ |
+    |                     
+ required by a bound 
+introduced by this call
+    |
+help: the trait 
+`ContractFunctionSet` is 
+not implemented for 
+`MockRegistrationContract`
+   --> contracts\escrow_co
+ntract\src\test.rs:15:1
+    |
+ 15 | pub struct 
+MockRegistrationContract;
+    | ^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+help: the trait 
+`ContractFunctionSet` is 
+implemented for 
+`EscrowContract`
+   --> contracts\escrow_co
+ntract\src\lib.rs:26:1
+    |
+ 26 | #[contract]
+    | ^^^^^^^^^^^
+    = note: required for `
+MockRegistrationContract` 
+to implement `Register`
+note: required by a bound 
+in `Env::register`
+   --> C:\Users\amarjeet p
+atel\.cargo\registry\src\i
+ndex.crates.io-1949cf8c6b5
+b557f\soroban-sdk-23.5.3\s
+rc\env.rs:711:12
+    |
+709 |     pub fn 
+register<'a, C, A>(&self, 
+contract: C, 
+constructor_args: A) -> 
+Address
+    |            -------- 
+required by a bound in 
+this associated function
+710 |     where
+711 |         C: Register,
+    |            ^^^^^^^^ 
+required by this bound in 
+`Env::register`
+    = note: this error 
+originates in the 
+attribute macro 
+`contract` (in Nightly 
+builds, run with -Z 
+macro-backtrace for more 
+info)
 
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
-Writing test snapshot file for test "test::test_deposit_success" to "test_snapshots\\test\\test_deposit_success.1.json".
-test test::test_deposit_success ... FAILED
+error[E0433]: failed to 
+resolve: use of 
+undeclared type `MockRegis
+trationContractClient`
+   --> contracts\escrow_co
+ntract\src\test.rs:332:22
+    |
+332 |     let reg_client 
+= MockRegistrationContract
+Client::new(env, &reg_id);
+    |                     
+ ^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^
+    |                     
+ |
+    |                     
+ use of undeclared type `M
+ockRegistrationContractCli
+ent`
+    |                     
+ help: a struct with a 
+similar name exists: 
+`MockRegistrationContract`
 
-failures:
+warning: use of 
+deprecated method `soroban
+_sdk::Env::register_stella
+r_asset_contract`: use [En
+v::register_stellar_asset_
+contract_v2]
+   --> contracts\escrow_co
+ntract\src\test.rs:337:21
+    |
+337 |     let token = env.
+register_stellar_asset_con
+tract(token_admin);
+    |                     
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^
 
-failures:
-    test::test_deposit_success
+error[E0277]: the trait 
+bound `MockRegistrationCon
+tract: Register` is not 
+satisfied
+   --> contracts\escrow_co
+ntract\src\test.rs:408:31
+    |
+408 |     let reg_id = env
+.register(MockRegistration
+Contract, ());
+    |                     
+ -------- 
+^^^^^^^^^^^^^^^^^^^^^^^^ 
+unsatisfied trait bound
+    |                     
+ |
+    |                     
+ required by a bound 
+introduced by this call
+    |
+help: the trait 
+`ContractFunctionSet` is 
+not implemented for 
+`MockRegistrationContract`
+   --> contracts\escrow_co
+ntract\src\test.rs:15:1
+    |
+ 15 | pub struct 
+MockRegistrationContract;
+    | ^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+help: the trait 
+`ContractFunctionSet` is 
+implemented for 
+`EscrowContract`
+   --> contracts\escrow_co
+ntract\src\lib.rs:26:1
+    |
+ 26 | #[contract]
+    | ^^^^^^^^^^^
+    = note: required for `
+MockRegistrationContract` 
+to implement `Register`
+note: required by a bound 
+in `Env::register`
+   --> C:\Users\amarjeet p
+atel\.cargo\registry\src\i
+ndex.crates.io-1949cf8c6b5
+b557f\soroban-sdk-23.5.3\s
+rc\env.rs:711:12
+    |
+709 |     pub fn 
+register<'a, C, A>(&self, 
+contract: C, 
+constructor_args: A) -> 
+Address
+    |            -------- 
+required by a bound in 
+this associated function
+710 |     where
+711 |         C: Register,
+    |            ^^^^^^^^ 
+required by this bound in 
+`Env::register`
+    = note: this error 
+originates in the 
+attribute macro 
+`contract` (in Nightly 
+builds, run with -Z 
+macro-backtrace for more 
+info)
 
-test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.02s
+error[E0433]: failed to 
+resolve: use of 
+undeclared type `MockRegis
+trationContractClient`
+   --> contracts\escrow_co
+ntract\src\test.rs:409:22
+    |
+409 |     let reg_client 
+= MockRegistrationContract
+Client::new(&env, 
+&reg_id);
+    |                     
+ ^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^
+    |                     
+ |
+    |                     
+ use of undeclared type `M
+ockRegistrationContractCli
+ent`
+    |                     
+ help: a struct with a 
+similar name exists: 
+`MockRegistrationContract`
 
-error: test failed, to rerun pass `-p escrow_contract --lib`
+warning: use of 
+deprecated method `soroban
+_sdk::Env::register_stella
+r_asset_contract`: use [En
+v::register_stellar_asset_
+contract_v2]
+   --> contracts\escrow_co
+ntract\src\test.rs:414:21
+    |
+414 |     let token = env.
+register_stellar_asset_con
+tract(token_admin);
+    |                     
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^
+
+warning: unused variable: 
+`from`
+   --> contracts\escrow_co
+ntract\src\test.rs:736:52
+    |
+736 |     let 
+(contract_id, client, 
+token, _token_admin, 
+from, _to) = 
+setup_test(&env);
+    |                     
+                          
+     ^^^^ help: if this 
+is intentional, prefix it 
+with an underscore: 
+`_from`
+    |
+    = note: `#[warn(unused
+_variables)]` (part of 
+`#[warn(unused)]`) on by 
+default
+
+warning: unused variable: 
+`from`
+   --> contracts\escrow_co
+ntract\src\test.rs:762:52
+    |
+762 |     let 
+(contract_id, client, 
+token, _token_admin, 
+from, _to) = 
+setup_test(&env);
+    |                     
+                          
+     ^^^^ help: if this 
+is intentional, prefix it 
+with an underscore: 
+`_from`
+
+warning: unused variable: 
+`from`
+   --> contracts\escrow_co
+ntract\src\test.rs:789:52
+    |
+789 |     let 
+(contract_id, client, 
+token, _token_admin, 
+from, _to) = 
+setup_test(&env);
+    |                     
+                          
+     ^^^^ help: if this 
+is intentional, prefix it 
+with an underscore: 
+`_from`
+
+warning: unused variable: 
+`from`
+   --> contracts\escrow_co
+ntract\src\test.rs:822:52
+    |
+822 |     let 
+(contract_id, client, 
+token, _token_admin, 
+from, _to) = 
+setup_test(&env);
+    |                     
+                          
+     ^^^^ help: if this 
+is intentional, prefix it 
+with an underscore: 
+`_from`
+
+Some errors have detailed 
+explanations: E0277, 
+E0433.
+For more information 
+about an error, try 
+`rustc --explain E0277`.
+warning: 
+`escrow_contract` (lib 
+test) generated 8 warnings
+error: could not compile 
+`escrow_contract` (lib 
+test) due to 6 previous 
+errors; 8 warnings emitted
