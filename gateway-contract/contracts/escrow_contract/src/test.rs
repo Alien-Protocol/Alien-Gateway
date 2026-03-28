@@ -76,6 +76,12 @@ fn create_vault(
     });
 }
 
+fn mint_token(env: &Env, token: &Address, token_admin: &Address, to: &Address, amount: i128) {
+    let admin_client = StellarAssetClient::new(env, token);
+    admin_client.mock_all_auths().mint(to, &amount);
+    assert_eq!(admin_client.admin(), *token_admin);
+}
+
 fn read_vault(env: &Env, contract_id: &Address, id: &BytesN<32>) -> VaultState {
     env.as_contract(contract_id, || {
         env.storage()
@@ -667,6 +673,70 @@ fn test_get_balance_after_payment() {
 
     // Balance should reflect the reserved funds
     assert_eq!(client.get_balance(&from), Some(initial - amount));
+}
+
+#[test]
+fn test_deposit_increases_balance() {
+    let env = Env::default();
+    let (contract_id, client, token, token_admin, from, _) = setup_test(&env);
+    let owner = Address::generate(&env);
+    let amount = 100_i128;
+
+    create_vault(&env, &contract_id, &from, &owner, &token, 0);
+    mint_token(&env, &token, &token_admin, &owner, amount);
+
+    client.mock_all_auths().deposit(&from, &amount);
+
+    assert_eq!(client.get_balance(&from), Some(amount));
+    let token_client = TokenClient::new(&env, &token);
+    assert_eq!(token_client.balance(&owner), 0);
+    assert_eq!(token_client.balance(&contract_id), amount);
+}
+
+#[test]
+#[should_panic]
+fn test_deposit_zero_panics() {
+    let env = Env::default();
+    let (contract_id, client, token, _, from, _) = setup_test(&env);
+    let owner = Address::generate(&env);
+
+    create_vault(&env, &contract_id, &from, &owner, &token, 0);
+    client.mock_all_auths().deposit(&from, &0);
+}
+
+#[test]
+#[should_panic]
+fn test_deposit_non_owner_panics() {
+    let env = Env::default();
+    let (contract_id, client, token, token_admin, from, _) = setup_test(&env);
+    let owner = Address::generate(&env);
+    let non_owner = Address::generate(&env);
+    let amount = 100_i128;
+
+    create_vault(&env, &contract_id, &from, &owner, &token, 0);
+    mint_token(&env, &token, &token_admin, &owner, amount);
+
+    client
+        .mock_auths(&[MockAuth {
+            address: &non_owner,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "deposit",
+                args: (from.clone(), amount).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .deposit(&from, &amount);
+}
+
+#[test]
+#[should_panic]
+fn test_deposit_vault_not_found_panics() {
+    let env = Env::default();
+    let (_, client, _, _, _, _) = setup_test(&env);
+    let commitment = BytesN::from_array(&env, &[9u8; 32]);
+
+    client.mock_all_auths().deposit(&commitment, &100);
 }
 
 // ─── auto-pay storage isolation tests ────────────────────────────────────────

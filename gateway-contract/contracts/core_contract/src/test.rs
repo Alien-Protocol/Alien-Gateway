@@ -47,7 +47,7 @@ fn test_register_success() {
 }
 
 #[test]
-#[should_panic(expected = "Commitment already registered")]
+#[should_panic(expected = "Error(Contract, #10)")]
 fn test_register_duplicate_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -371,6 +371,70 @@ fn test_resolve_stellar_linked_address_differs_from_owner() {
 
     let resolved = client.resolve_stellar(&hash);
     assert_eq!(resolved, payment_address);
+}
+
+#[test]
+fn test_resolve_stellar_owner_is_linked_address() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 41);
+
+    client.register(&owner, &hash);
+    client.add_stellar_address(&owner, &hash, &owner);
+
+    let resolved = client.resolve_stellar(&hash);
+    assert_eq!(resolved, owner);
+}
+
+#[test]
+fn test_resolve_stellar_after_ownership_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, root) = setup_with_root(&env);
+
+    let owner = Address::generate(&env);
+    let new_owner = Address::generate(&env);
+    let hash = commitment(&env, 42);
+
+    client.register(&owner, &hash);
+    client.add_stellar_address(&owner, &hash, &owner);
+
+    let signals = PublicSignals {
+        old_root: root,
+        new_root: BytesN::from_array(&env, &[43u8; 32]),
+    };
+
+    client.transfer(&owner, &hash, &new_owner, &dummy_proof(&env), &signals);
+
+    let new_address = Address::generate(&env);
+    client.add_stellar_address(&new_owner, &hash, &new_address);
+
+    let resolved = client.resolve_stellar(&hash);
+    assert_eq!(resolved, new_address);
+}
+
+#[test]
+fn test_add_stellar_address_overwrites_previous() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 43);
+
+    client.register(&owner, &hash);
+
+    let original_address = Address::generate(&env);
+    let updated_address = Address::generate(&env);
+
+    client.add_stellar_address(&owner, &hash, &original_address);
+    client.add_stellar_address(&owner, &hash, &updated_address);
+
+    let resolved = client.resolve_stellar(&hash);
+    assert_eq!(resolved, updated_address);
 }
 
 #[test]
