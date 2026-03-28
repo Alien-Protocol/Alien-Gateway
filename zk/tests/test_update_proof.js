@@ -67,6 +67,38 @@ function computeRoot(poseidon, leaf, siblings, indices) {
     return current;
 }
 
+/**
+ * Compute username hash using the same algorithm as the UsernameHash circuit
+ * This mirrors the 2-level Poseidon hashing approach used in username_hash.circom
+ */
+function computeUsernameHash(poseidon, username) {
+    const F = poseidon.F;
+    
+    // Step 1: Hash in chunks of 4 (8 chunks total)
+    const h = [];
+    for (let i = 0; i < 8; i++) {
+        const chunk = [];
+        for (let j = 0; j < 4; j++) {
+            chunk.push(username[i * 4 + j]);
+        }
+        h.push(F.toObject(poseidon(chunk)));
+    }
+    
+    // Step 2: Hash intermediate hashes (2 chunks of 4)
+    const h2 = [];
+    for (let i = 0; i < 2; i++) {
+        const chunk = [];
+        for (let j = 0; j < 4; j++) {
+            chunk.push(h[i * 4 + j]);
+        }
+        h2.push(F.toObject(poseidon(chunk)));
+    }
+    
+    // Final hash
+    const finalHash = F.toObject(poseidon(h2));
+    return finalHash;
+}
+
 // ── Test runner ──────────────────────────────────────────────────────────────
 
 async function runTests() {
@@ -94,12 +126,15 @@ async function runTests() {
         "oldRoot should match pre-computed all-empty root"
     );
 
-    // Use a simple usernameHash value (in a real flow this comes from UsernameHash circuit)
-    const usernameHash = F.toObject(poseidon([BigInt(42), BigInt(0)]));
+    // Use a simple username array (in a real flow this comes from user input)
+    // Create a 32-character username array with simple values
+    const username = new Array(32).fill(BigInt(42)); // Simple test username
+    // Compute the expected username hash using the same algorithm as the circuit
+    const usernameHash = computeUsernameHash(poseidon, username);
     const newRoot      = computeRoot(poseidon, usernameHash, siblings, indices);
 
     const input = {
-        usernameHash:        usernameHash.toString(),
+        username:            username.map(x => x.toString()),
         merklePathSiblings:  siblings.map(x => x.toString()),
         merklePathIndices:   indices.map(x => x.toString()),
         oldRoot:             oldRoot.toString(),
