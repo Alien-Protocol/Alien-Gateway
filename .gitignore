@@ -1,2 +1,3 @@
 node_modules
-gateway-contract/contracts/**/test_snapshots/
+# Soroban test snapshots — now committed as regression guards
+# gateway-contract/contracts/**/test_snapshots/
