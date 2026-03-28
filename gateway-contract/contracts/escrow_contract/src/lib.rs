@@ -353,6 +353,37 @@ impl EscrowContract {
         Events::vault_cancel(&env, commitment, refunded_amount);
     }
 
+    /// Withdraws tokens from an active vault back to the owner.
+    ///
+    /// The vault owner must authorize this call. The vault remains active and
+    /// its balance is reduced by the withdrawn amount.
+    pub fn withdraw(env: Env, commitment: BytesN<32>, amount: i128) {
+        if amount <= 0 {
+            panic_with_error!(&env, EscrowError::InvalidAmount);
+        }
+
+        let config = read_vault_config(&env, &commitment)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+        let mut state = read_vault_state(&env, &commitment)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+
+        config.owner.require_auth();
+
+        if !state.is_active {
+            panic_with_error!(&env, EscrowError::VaultInactive);
+        }
+
+        if state.balance < amount {
+            panic_with_error!(&env, EscrowError::InsufficientBalance);
+        }
+
+        state.balance -= amount;
+        write_vault_state(&env, &commitment, &state);
+
+        let token_client = token::Client::new(&env, &config.token);
+        token_client.transfer(&env.current_contract_address(), &config.owner, &amount);
+    }
+
     /// Registers a recurring payment rule.
     ///
     /// Once registered, calling `trigger_auto_pay` will send `amount` tokens
