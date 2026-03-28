@@ -38,6 +38,9 @@ impl Contract {
     /// Retrieves the current SMT root. See [admin::Admin::get_smt_root].
     pub fn get_smt_root(e: Env) -> BytesN<32> { Admin::get_smt_root(e) }
 
+    /// Updates the SMT root with owner authorization. See [admin::Admin::update_smt_root].
+    pub fn update_smt_root(e: Env, r: BytesN<32>) { Admin::update_smt_root(e, r) }
+
     /// Registers a username with ZK proof validation. See [resolver::Resolver::register_resolver].
     pub fn register_resolver(e: Env, c: Address, h: BytesN<32>, p: Bytes, s: PublicSignals) { Resolver::register_resolver(e, c, h, p, s); }
 
