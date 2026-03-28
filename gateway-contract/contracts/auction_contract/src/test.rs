@@ -234,15 +234,91 @@ fn test_auction_full_lifecycle() {
     client.place_bid(&1, &bidder1, &150);
     client.place_bid(&1, &bidder2, &200);
 
-    // bidder1 refunded, bidder2 holds 800
-    assert_eq!(token.balance(&bidder1), 1000);
+    // bidder1 is outbid and funds are held for refund; bidder2 is highest bidder.
+    assert_eq!(token.balance(&bidder1), 850);
     assert_eq!(token.balance(&bidder2), 800);
 
     env.ledger().set_timestamp(1001);
     client.close_auction_by_id(&1);
-    client.claim(&1, &bidder2);
 
+    client.refund_bid(&1, &bidder1);
+    assert_eq!(token.balance(&bidder1), 1000);
+
+    client.claim(&1, &bidder2);
     assert_eq!(token.balance(&seller), 200);
+}
+
+#[test]
+fn test_refund_bid_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, seller, asset) = setup(&env);
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &asset);
+    let token = soroban_sdk::token::Client::new(&env, &asset);
+    let bidder1 = Address::generate(&env);
+    let bidder2 = Address::generate(&env);
+
+    token_admin.mint(&bidder1, &1000);
+    token_admin.mint(&bidder2, &1000);
+
+    client.create_auction(&1, &seller, &asset, &100, &1000u64);
+    client.place_bid(&1, &bidder1, &150);
+    client.place_bid(&1, &bidder2, &200);
+
+    env.ledger().set_timestamp(1001);
+    client.close_auction_by_id(&1);
+
+    client.refund_bid(&1, &bidder1);
+
+    assert_eq!(token.balance(&bidder1), 1000);
+    assert_eq!(token.balance(&bidder2), 800);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_refund_bid_winner_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, seller, asset) = setup(&env);
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &asset);
+    let bidder1 = Address::generate(&env);
+    let bidder2 = Address::generate(&env);
+
+    token_admin.mint(&bidder1, &1000);
+    token_admin.mint(&bidder2, &1000);
+
+    client.create_auction(&1, &seller, &asset, &100, &1000u64);
+    client.place_bid(&1, &bidder1, &150);
+    client.place_bid(&1, &bidder2, &200);
+
+    env.ledger().set_timestamp(1001);
+    client.close_auction_by_id(&1);
+
+    client.refund_bid(&1, &bidder2);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #2)")]
+fn test_refund_bid_double_refund_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, seller, asset) = setup(&env);
+    let token_admin = soroban_sdk::token::StellarAssetClient::new(&env, &asset);
+    let bidder1 = Address::generate(&env);
+    let bidder2 = Address::generate(&env);
+
+    token_admin.mint(&bidder1, &1000);
+    token_admin.mint(&bidder2, &1000);
+
+    client.create_auction(&1, &seller, &asset, &100, &1000u64);
+    client.place_bid(&1, &bidder1, &150);
+    client.place_bid(&1, &bidder2, &200);
+
+    env.ledger().set_timestamp(1001);
+    client.close_auction_by_id(&1);
+
+    client.refund_bid(&1, &bidder1);
+    client.refund_bid(&1, &bidder1);
 }
 
 #[test]
