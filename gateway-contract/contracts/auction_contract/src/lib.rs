@@ -24,10 +24,27 @@ fn _touch_event_symbols() {
 mod test;
 
 #[contract]
+/// Auction contract for the Alien Gateway username system.
+///
+/// Manages auction lifecycle (create, bid, close, claim) and
+/// username claiming via a factory contract.
 pub struct AuctionContract;
 
 #[contractimpl]
 impl AuctionContract {
+    /// Closes the global auction after its end time has passed.
+    ///
+    /// # Parameters
+    /// - `env` – The contract environment.
+    /// - `username_hash` – The 32-byte hash of the auctioned username.
+    ///
+    /// # Errors
+    /// - [`errors::AuctionError::AuctionNotOpen`] – The auction status is not `Open`.
+    /// - [`errors::AuctionError::AuctionNotClosed`] – The current ledger timestamp is before `end_time`.
+    ///
+    /// # State Changes
+    /// Sets the auction status to `Closed` and emits an `AUCTION_CLOSED` event
+    /// containing the winner address and winning bid amount.
     pub fn close_auction(
         env: Env,
         username_hash: BytesN<32>,
@@ -61,6 +78,28 @@ impl AuctionContract {
         Ok(())
     }
 
+    /// Claims the auctioned username after the auction is closed.
+    ///
+    /// Deploys the username via the factory contract so the winner can use it
+    /// as their Stellar identity.
+    ///
+    /// # Parameters
+    /// - `env` – The contract environment.
+    /// - `username_hash` – The 32-byte hash of the auctioned username.
+    /// - `claimer` – The address of the caller (must be the highest bidder).
+    ///
+    /// # Authorization
+    /// Requires `claimer.require_auth()`.
+    ///
+    /// # Errors
+    /// - [`errors::AuctionError::AlreadyClaimed`] – The username has already been claimed.
+    /// - [`errors::AuctionError::NotClosed`] – The auction is not yet closed.
+    /// - [`errors::AuctionError::NotWinner`] – The claimer is not the highest bidder.
+    /// - [`errors::AuctionError::NoFactoryContract`] – No factory contract address is configured.
+    ///
+    /// # State Changes
+    /// Sets the auction status to `Claimed`, invokes `deploy_username` on the
+    /// factory contract, and emits a `USERNAME_CLAIMED` event.
     pub fn claim_username(
         env: Env,
         username_hash: BytesN<32>,
@@ -108,6 +147,24 @@ impl AuctionContract {
 
 #[contractimpl]
 impl AuctionContract {
+    /// Creates a new auction with the given parameters.
+    ///
+    /// # Parameters
+    /// - `env` – The contract environment.
+    /// - `id` – Unique auction identifier.
+    /// - `seller` – The address creating the auction (must authorize).
+    /// - `asset` – The token contract address used for bidding.
+    /// - `min_bid` – The minimum accepted bid amount.
+    /// - `end_time` – Ledger timestamp after which the auction can be closed.
+    ///
+    /// # Authorization
+    /// Requires `seller.require_auth()`.
+    ///
+    /// # Errors
+    /// Panics with [`errors::AuctionError::AuctionNotOpen`] if an auction with `id` already exists.
+    ///
+    /// # State Changes
+    /// Stores the seller, asset, min bid, end time, and sets the auction status to `Open`.
     pub fn create_auction(
         env: Env,
         id: u32,
@@ -127,6 +184,28 @@ impl AuctionContract {
         storage::auction_set_status(&env, id, types::AuctionStatus::Open);
     }
 
+    /// Places a bid on an open auction.
+    ///
+    /// Transfers the bid amount from the bidder to the contract. If a previous
+    /// highest bid exists, it is refunded to the previous bidder.
+    ///
+    /// # Parameters
+    /// - `env` – The contract environment.
+    /// - `id` – The auction identifier.
+    /// - `bidder` – The address placing the bid (must authorize).
+    /// - `amount` – The bid amount (must exceed both `min_bid` and the current highest bid).
+    ///
+    /// # Authorization
+    /// Requires `bidder.require_auth()`.
+    ///
+    /// # Errors
+    /// - Panics with [`errors::AuctionError::AuctionNotOpen`] if the auction has ended.
+    /// - Panics with [`errors::AuctionError::BidTooLow`] if `amount` is below `min_bid` or not
+    ///   greater than the current highest bid.
+    ///
+    /// # State Changes
+    /// Updates the highest bidder and highest bid. Transfers tokens from the bidder
+    /// to the contract and refunds the previous highest bidder if any.
     pub fn place_bid(env: Env, id: u32, bidder: Address, amount: i128) {
         bidder.require_auth();
         let end_time = storage::auction_get_end_time(&env, id);
@@ -148,6 +227,18 @@ impl AuctionContract {
         storage::auction_set_highest_bid(&env, id, amount);
     }
 
+    /// Closes an auction by its numeric identifier after the end time has passed.
+    ///
+    /// # Parameters
+    /// - `env` – The contract environment.
+    /// - `id` – The auction identifier.
+    ///
+    /// # Errors
+    /// Panics with [`errors::AuctionError::AuctionNotClosed`] if the current ledger timestamp
+    /// is before the auction's end time.
+    ///
+    /// # State Changes
+    /// Sets the auction status to `Closed`.
     pub fn close_auction_by_id(env: Env, id: u32) {
         let end_time = storage::auction_get_end_time(&env, id);
         if env.ledger().timestamp() < end_time {
@@ -156,6 +247,27 @@ impl AuctionContract {
         storage::auction_set_status(&env, id, types::AuctionStatus::Closed);
     }
 
+    /// Claims the proceeds of a closed auction.
+    ///
+    /// The winning bidder calls this to transfer the winning bid amount from the
+    /// contract to the seller.
+    ///
+    /// # Parameters
+    /// - `env` – The contract environment.
+    /// - `id` – The auction identifier.
+    /// - `claimant` – The address claiming the auction (must be the highest bidder).
+    ///
+    /// # Authorization
+    /// Requires `claimant.require_auth()`.
+    ///
+    /// # Errors
+    /// - Panics with [`errors::AuctionError::NotClosed`] if the auction is not in `Closed` status.
+    /// - Panics with [`errors::AuctionError::AlreadyClaimed`] if the auction has already been claimed.
+    /// - Panics with [`errors::AuctionError::NotWinner`] if the claimant is not the highest bidder.
+    ///
+    /// # State Changes
+    /// Transfers the winning bid from the contract to the seller and marks the
+    /// auction as claimed.
     pub fn claim(env: Env, id: u32, claimant: Address) {
         claimant.require_auth();
         let status = storage::auction_get_status(&env, id);
