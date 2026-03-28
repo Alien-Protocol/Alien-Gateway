@@ -10,7 +10,7 @@ impl SmtRoot {
     /// This should only be called from within verified proof submission flow.
     /// Emits ROOT_UPD event with (old_root, new_root).
     #[allow(dead_code)]
-    pub(crate) fn update_root(env: &Env, new_root: BytesN<32>) {
+    pub fn update_root(env: &Env, new_root: BytesN<32>) {
         let old_root: Option<BytesN<32>> = env.storage().instance().get(&DataKey::SmtRoot);
 
         env.storage().instance().set(&DataKey::SmtRoot, &new_root);
