@@ -4,9 +4,9 @@ use crate::errors::EscrowError;
 use crate::types::{DataKey, ScheduledPayment, VaultConfig, VaultState};
 use crate::EscrowContract;
 use crate::EscrowContractClient;
-use soroban_sdk::testutils::{Address as _, Events as _, Ledger};
+use soroban_sdk::testutils::{Address as _, Events as _, Ledger, MockAuth, MockAuthInvoke};
 use soroban_sdk::token::{Client as TokenClient, StellarAssetClient};
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Error};
+use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Error, IntoVal};
 
 // ---------------------------------------------------------------------------
 // Mock Registration contract — exposes get_owner / set_owner for tests.
@@ -74,6 +74,12 @@ fn create_vault(
             .persistent()
             .set(&DataKey::VaultState(id.clone()), &state);
     });
+}
+
+fn mint_token(env: &Env, token: &Address, token_admin: &Address, to: &Address, amount: i128) {
+    let admin_client = StellarAssetClient::new(env, token);
+    admin_client.mock_all_auths().mint(to, &amount);
+    assert_eq!(admin_client.admin(), *token_admin);
 }
 
 fn read_vault(env: &Env, contract_id: &Address, id: &BytesN<32>) -> VaultState {
@@ -482,4 +488,183 @@ fn test_execute_scheduled_not_found_panics() {
         result,
         Err(Ok(err)) if err == Error::from_contract_error(EscrowError::PaymentNotFound as u32)
     ));
+}
+
+// ─── get_balance tests ───────────────────────────────────────────────
+
+#[test]
+fn test_get_balance_vault_not_found() {
+    let env = Env::default();
+    let (_, client, _, _, _, _) = setup_test(&env);
+
+    let unknown = BytesN::from_array(&env, &[99u8; 32]);
+    assert_eq!(client.get_balance(&unknown), None);
+}
+
+#[test]
+fn test_get_balance_after_deposit() {
+    let env = Env::default();
+    let (contract_id, client, token, _, from, _) = setup_test(&env);
+
+    let balance = 5_000i128;
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        balance,
+    );
+
+    assert_eq!(client.get_balance(&from), Some(balance));
+}
+
+#[test]
+fn test_get_balance_after_payment() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _, from, to) = setup_test(&env);
+
+    let initial = 1_000i128;
+    let amount = 300i128;
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        initial,
+    );
+    create_vault(&env, &contract_id, &to, &Address::generate(&env), &token, 0);
+
+    env.ledger().set_timestamp(1000);
+    client.schedule_payment(&from, &to, &amount, &2000);
+
+    // Balance should reflect the reserved funds
+    assert_eq!(client.get_balance(&from), Some(initial - amount));
+}
+
+#[test]
+fn test_deposit_increases_balance() {
+    let env = Env::default();
+    let (contract_id, client, token, token_admin, from, _) = setup_test(&env);
+    let owner = Address::generate(&env);
+    let amount = 100_i128;
+
+    create_vault(&env, &contract_id, &from, &owner, &token, 0);
+    mint_token(&env, &token, &token_admin, &owner, amount);
+
+    client.mock_all_auths().deposit(&from, &amount);
+
+    assert_eq!(client.get_balance(&from), Some(amount));
+    let token_client = TokenClient::new(&env, &token);
+    assert_eq!(token_client.balance(&owner), 0);
+    assert_eq!(token_client.balance(&contract_id), amount);
+}
+
+#[test]
+#[should_panic]
+fn test_deposit_zero_panics() {
+    let env = Env::default();
+    let (contract_id, client, token, _, from, _) = setup_test(&env);
+    let owner = Address::generate(&env);
+
+    create_vault(&env, &contract_id, &from, &owner, &token, 0);
+    client.mock_all_auths().deposit(&from, &0);
+}
+
+#[test]
+#[should_panic]
+fn test_deposit_non_owner_panics() {
+    let env = Env::default();
+    let (contract_id, client, token, token_admin, from, _) = setup_test(&env);
+    let owner = Address::generate(&env);
+    let non_owner = Address::generate(&env);
+    let amount = 100_i128;
+
+    create_vault(&env, &contract_id, &from, &owner, &token, 0);
+    mint_token(&env, &token, &token_admin, &owner, amount);
+
+    client
+        .mock_auths(&[MockAuth {
+            address: &non_owner,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "deposit",
+                args: (from.clone(), amount).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .deposit(&from, &amount);
+}
+
+#[test]
+#[should_panic]
+fn test_deposit_vault_not_found_panics() {
+    let env = Env::default();
+    let (_, client, _, _, _, _) = setup_test(&env);
+    let commitment = BytesN::from_array(&env, &[9u8; 32]);
+
+    client.mock_all_auths().deposit(&commitment, &100);
+}
+
+// ─── auto-pay storage isolation tests ────────────────────────────────────────
+
+/// Registers one auto-pay rule on each of two different vaults and confirms
+/// that neither rule is visible when looking up the other vault's commitment.
+/// This validates that the composite key (commitment, rule_id) fully isolates
+/// rules across vaults even when the global rule_id counter produces the same
+/// numeric ID for each.
+#[test]
+fn test_auto_pay_multiple_vaults_no_interference() {
+    use crate::storage::{read_auto_pay, write_auto_pay};
+    use crate::types::AutoPay;
+
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, _client, token, _token_admin, _from, _to) = setup_test(&env);
+
+    let vault_a = BytesN::from_array(&env, &[0xAAu8; 32]);
+    let vault_b = BytesN::from_array(&env, &[0xBBu8; 32]);
+
+    let rule_a = AutoPay {
+        from: vault_a.clone(),
+        to: vault_b.clone(),
+        token: token.clone(),
+        amount: 100,
+        interval: 86_400,
+        last_paid: 0,
+    };
+    let rule_b = AutoPay {
+        from: vault_b.clone(),
+        to: vault_a.clone(),
+        token: token.clone(),
+        amount: 200,
+        interval: 43_200,
+        last_paid: 0,
+    };
+
+    // Both rules share rule_id = 0 (simulating the global counter starting at 0
+    // for each vault). The composite key must keep them isolated.
+    env.as_contract(&contract_id, || {
+        write_auto_pay(&env, &vault_a, 0, &rule_a);
+        write_auto_pay(&env, &vault_b, 0, &rule_b);
+    });
+
+    env.as_contract(&contract_id, || {
+        // Vault A's rule is retrievable under vault A's commitment.
+        let stored_a = read_auto_pay(&env, &vault_a, 0).expect("rule for vault_a not found");
+        assert_eq!(stored_a.amount, 100);
+        assert_eq!(stored_a.interval, 86_400);
+
+        // Vault B's rule is retrievable under vault B's commitment.
+        let stored_b = read_auto_pay(&env, &vault_b, 0).expect("rule for vault_b not found");
+        assert_eq!(stored_b.amount, 200);
+        assert_eq!(stored_b.interval, 43_200);
+
+        // Vault A's commitment does NOT return vault B's rule, and vice versa.
+        assert_ne!(stored_a.amount, stored_b.amount);
+        assert_ne!(stored_a.from, stored_b.from);
+    });
 }

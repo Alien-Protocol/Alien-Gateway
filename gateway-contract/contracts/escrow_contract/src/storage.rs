@@ -2,6 +2,12 @@ use crate::errors::EscrowError;
 use crate::types::{AutoPay, DataKey, LegacyVault, ScheduledPayment, VaultConfig, VaultState};
 use soroban_sdk::{Address, BytesN, Env};
 
+/// TTL constants for persistent storage entries.
+/// Bump amount: ~30 days (at ~5s per ledger close).
+pub(crate) const PERSISTENT_BUMP_AMOUNT: u32 = 518_400;
+/// Lifetime threshold: ~7 days — entries are extended when remaining TTL drops below this.
+pub(crate) const PERSISTENT_LIFETIME_THRESHOLD: u32 = 120_960;
+
 /// Reads a vault's immutable configuration from persistent storage.
 ///
 /// Checks the new `VaultConfig` key first; if absent, falls back to the legacy `Vault` key and
@@ -21,9 +27,13 @@ pub fn read_vault_config(env: &Env, commitment: &BytesN<32>) -> Option<VaultConf
 
 /// Writes a vault's immutable configuration to persistent storage.
 pub fn write_vault_config(env: &Env, commitment: &BytesN<32>, config: &VaultConfig) {
-    env.storage()
-        .persistent()
-        .set(&DataKey::VaultConfig(commitment.clone()), config);
+    let key = DataKey::VaultConfig(commitment.clone());
+    env.storage().persistent().set(&key, config);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 /// Reads a vault's mutable state from persistent storage.
@@ -44,9 +54,13 @@ pub fn read_vault_state(env: &Env, commitment: &BytesN<32>) -> Option<VaultState
 
 /// Writes a vault's mutable state to persistent storage.
 pub fn write_vault_state(env: &Env, commitment: &BytesN<32>, state: &VaultState) {
-    env.storage()
-        .persistent()
-        .set(&DataKey::VaultState(commitment.clone()), state);
+    let key = DataKey::VaultState(commitment.clone());
+    env.storage().persistent().set(&key, state);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 /// Increments the global payment counter and returns the previous ID.
@@ -85,9 +99,13 @@ pub fn write_registration_contract(env: &Env, address: &Address) {
 
 /// Records a new scheduled payment in persistent storage.
 pub fn write_scheduled_payment(env: &Env, id: u32, payment: &ScheduledPayment) {
-    env.storage()
-        .persistent()
-        .set(&DataKey::ScheduledPayment(id), payment);
+    let key = DataKey::ScheduledPayment(id);
+    env.storage().persistent().set(&key, payment);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
 }
 
 /// Increments the global auto-pay counter and returns the previous ID.
@@ -114,9 +132,12 @@ pub fn increment_auto_pay_id(env: &Env) -> Result<u32, EscrowError> {
 
 /// Records an auto-pay rule in persistent storage under the composite key (vault, rule_id).
 pub fn write_auto_pay(env: &Env, commitment: &BytesN<32>, rule_id: u32, auto_pay: &AutoPay) {
-    env.storage().persistent().set(
-        &DataKey::AutoPay(commitment.clone(), rule_id as u64),
-        auto_pay,
+    let key = DataKey::AutoPay(commitment.clone(), rule_id as u64);
+    env.storage().persistent().set(&key, auto_pay);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
     );
 }
 

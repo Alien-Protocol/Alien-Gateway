@@ -3,6 +3,7 @@ use soroban_sdk::{contracttype, panic_with_error, Address, Bytes, BytesN, Env};
 use crate::errors::ChainAddressError;
 use crate::events::{CHAIN_ADD, CHAIN_REM};
 use crate::registration::DataKey as CommitmentKey;
+use crate::storage::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD};
 use crate::types::ChainType;
 
 #[contracttype]
@@ -40,6 +41,11 @@ impl AddressManager {
 
         let key = ChainAddrKey::ChainAddress(username_hash.clone(), chain.clone());
         env.storage().persistent().set(&key, &address);
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
 
         #[allow(deprecated)]
         env.events()
