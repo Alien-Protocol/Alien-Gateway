@@ -18,6 +18,9 @@ use crate::storage::{
 };
 use crate::types::UsernameRecord;
 
+mod errors;
+pub use errors::FactoryError;
+
 #[contract]
 pub struct FactoryContract;
 
