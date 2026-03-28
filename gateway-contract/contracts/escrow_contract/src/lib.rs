@@ -153,6 +153,60 @@ impl EscrowContract {
         Events::deposit(&env, commitment, amount, state.balance);
     }
 
+    /// Withdraws tokens from an existing vault.
+    ///
+    /// The vault owner must authorize this call. Tokens are transferred from the
+    /// contract to the owner before the vault balance is updated.
+    ///
+    /// ### Arguments
+    /// - `commitment`: The BytesN<32> identity commitment of the vault.
+    /// - `amount`: The amount of tokens to withdraw. Must be > 0.
+    ///
+    /// ### Errors
+    /// - `InvalidAmount`: If `amount <= 0`.
+    /// - `VaultNotFound`: If the vault does not exist.
+    /// - `VaultInactive`: If the vault is cancelled/inactive.
+    /// - `InsufficientBalance`: If the vault balance is less than `amount`.
+    pub fn withdraw(env: Env, commitment: BytesN<32>, amount: i128) {
+        soroban_sdk::log!(
+            &env,
+            "[CONTRACT DEBUG] withdraw: contract address = {:?}",
+            env.current_contract_address()
+        );
+        if amount <= 0 {
+            panic_with_error!(&env, EscrowError::InvalidAmount);
+        }
+
+        let config = read_vault_config(&env, &commitment)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+        let mut state = read_vault_state(&env, &commitment)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+
+        config.owner.require_auth();
+
+        if !state.is_active {
+            panic_with_error!(&env, EscrowError::VaultInactive);
+        }
+
+        if state.balance < amount {
+            panic_with_error!(&env, EscrowError::InsufficientBalance);
+        }
+
+        // Transfer tokens from contract to owner
+        let token_client = token::Client::new(&env, &config.token);
+        token_client.transfer(&env.current_contract_address(), &config.owner, &amount);
+
+        // Update state safely
+        state.balance = state
+            .balance
+            .checked_sub(amount)
+            .expect("vault balance underflow");
+        write_vault_state(&env, &commitment, &state);
+
+        // Emit WITHDRAW event.
+        Events::withdraw(&env, commitment, amount, state.balance);
+    }
+
     /// Schedules a payment from one vault to another.
     ///
     /// Funds are reserved in the source vault immediately upon scheduling.
