@@ -14,7 +14,7 @@ mod test;
 
 use address_manager::AddressManager;
 use errors::CoreError;
-use events::{REGISTER_EVENT, TRANSFER_EVENT};
+use events::{privacy_set_event, shielded_add_event, INIT_EVENT, REGISTER_EVENT, TRANSFER_EVENT};
 use registration::Registration;
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, Bytes, BytesN, Env};
 use types::{ChainType, PrivacyMode, PublicSignals, ResolveData};
@@ -24,6 +24,31 @@ pub struct Contract;
 
 #[contractimpl]
 impl Contract {
+    /// Initializes the contract by setting the owner address.
+    ///
+    /// Must be called once after deployment. Panics with `AlreadyInitialized`
+    /// if called again on an already-initialized instance.
+    pub fn initialize(env: Env, owner: Address) {
+        owner.require_auth();
+
+        if storage::is_initialized(&env) {
+            panic_with_error!(&env, errors::CoreError::AlreadyInitialized);
+        }
+
+        storage::set_owner(&env, &owner);
+
+        #[allow(deprecated)]
+        env.events().publish((INIT_EVENT,), (owner,));
+    }
+
+    /// Returns the contract owner address set during `initialize`.
+    ///
+    /// Panics with `NotFound` if `initialize` has not been called yet.
+    pub fn get_contract_owner(env: Env) -> Address {
+        storage::get_owner(&env)
+            .unwrap_or_else(|| panic_with_error!(&env, errors::CoreError::NotFound))
+    }
+
     pub fn get_smt_root(env: Env) -> BytesN<32> {
         smt_root::SmtRoot::get_root(env.clone())
             .unwrap_or_else(|| panic_with_error!(&env, CoreError::RootNotSet))
@@ -58,6 +83,11 @@ impl Contract {
             memo: None,
         };
         env.storage().persistent().set(&key, &data);
+        env.storage().persistent().extend_ttl(
+            &key,
+            storage::PERSISTENT_LIFETIME_THRESHOLD,
+            storage::PERSISTENT_BUMP_AMOUNT,
+        );
 
         smt_root::SmtRoot::update_root(&env, public_signals.new_root);
 
@@ -67,24 +97,36 @@ impl Contract {
     }
 
     pub fn set_memo(env: Env, commitment: BytesN<32>, memo_id: u64) {
+        let key = storage::DataKey::Resolver(commitment);
         let mut data = env
             .storage()
             .persistent()
-            .get::<storage::DataKey, ResolveData>(&storage::DataKey::Resolver(commitment.clone()))
+            .get::<storage::DataKey, ResolveData>(&key)
             .unwrap_or_else(|| panic_with_error!(&env, CoreError::NotFound));
 
         data.memo = Some(memo_id);
-        env.storage()
-            .persistent()
-            .set(&storage::DataKey::Resolver(commitment), &data);
+        env.storage().persistent().set(&key, &data);
+        env.storage().persistent().extend_ttl(
+            &key,
+            storage::PERSISTENT_LIFETIME_THRESHOLD,
+            storage::PERSISTENT_BUMP_AMOUNT,
+        );
     }
 
     pub fn set_privacy_mode(env: Env, username_hash: BytesN<32>, mode: PrivacyMode) {
-        AddressManager::set_privacy_mode(env, username_hash, mode);
+        let owner = Registration::get_owner(env.clone(), username_hash.clone())
+            .unwrap_or_else(|| panic_with_error!(&env, CoreError::NotFound));
+        owner.require_auth();
+
+        storage::set_privacy_mode(&env, &username_hash, &mode);
+
+        #[allow(deprecated)]
+        env.events()
+            .publish((privacy_set_event(&env),), (username_hash, mode));
     }
 
     pub fn get_privacy_mode(env: Env, username_hash: BytesN<32>) -> PrivacyMode {
-        AddressManager::get_privacy_mode(env, username_hash)
+        storage::get_privacy_mode(&env, &username_hash)
     }
 
     pub fn resolve(env: Env, commitment: BytesN<32>) -> (Address, Option<u64>) {
@@ -94,8 +136,7 @@ impl Contract {
             .get::<storage::DataKey, ResolveData>(&storage::DataKey::Resolver(commitment.clone()))
         {
             Some(data) => {
-                if AddressManager::get_privacy_mode(env.clone(), commitment) == PrivacyMode::Private
-                {
+                if storage::get_privacy_mode(&env, &commitment) == PrivacyMode::Shielded {
                     (env.current_contract_address(), data.memo)
                 } else {
                     (data.wallet, data.memo)
@@ -155,9 +196,12 @@ impl Contract {
             panic_with_error!(&env, CoreError::NotFound);
         }
 
-        env.storage().persistent().set(
-            &storage::DataKey::StellarAddress(username_hash),
-            &stellar_address,
+        let key = storage::DataKey::StellarAddress(username_hash);
+        env.storage().persistent().set(&key, &stellar_address);
+        env.storage().persistent().extend_ttl(
+            &key,
+            storage::PERSISTENT_LIFETIME_THRESHOLD,
+            storage::PERSISTENT_BUMP_AMOUNT,
         );
     }
 
@@ -189,6 +233,11 @@ impl Contract {
         }
 
         env.storage().persistent().set(&key, &new_owner);
+        env.storage().persistent().extend_ttl(
+            &key,
+            storage::PERSISTENT_LIFETIME_THRESHOLD,
+            storage::PERSISTENT_BUMP_AMOUNT,
+        );
 
         #[allow(deprecated)]
         env.events()
@@ -239,6 +288,11 @@ impl Contract {
 
         // Update ownership
         env.storage().persistent().set(&key, &new_owner);
+        env.storage().persistent().extend_ttl(
+            &key,
+            storage::PERSISTENT_LIFETIME_THRESHOLD,
+            storage::PERSISTENT_BUMP_AMOUNT,
+        );
 
         // Advance SMT root
         smt_root::SmtRoot::update_root(&env, public_signals.new_root);
@@ -247,6 +301,45 @@ impl Contract {
         #[allow(deprecated)]
         env.events()
             .publish((TRANSFER_EVENT,), (commitment, caller, new_owner));
+    }
+
+    /// Stores a ZK commitment as the shielded address for the given username.
+    ///
+    /// Only the registered owner of `username_hash` may call this function.
+    /// The raw address is never stored — only the commitment (ZK proof handle).
+    /// Emits a `SHIELDED_ADD` event on success.
+    pub fn add_shielded_address(
+        env: Env,
+        caller: Address,
+        username_hash: BytesN<32>,
+        address_commitment: BytesN<32>,
+    ) {
+        caller.require_auth();
+
+        let owner = registration::Registration::get_owner(env.clone(), username_hash.clone())
+            .unwrap_or_else(|| panic_with_error!(&env, CoreError::NotFound));
+
+        if owner != caller {
+            panic_with_error!(&env, CoreError::Unauthorized);
+        }
+
+        storage::set_shielded_address(&env, &username_hash, &address_commitment);
+
+        #[allow(deprecated)]
+        env.events().publish(
+            (shielded_add_event(&env),),
+            (username_hash, address_commitment),
+        );
+    }
+
+    /// Returns the shielded address commitment for the given username hash, if any.
+    pub fn get_shielded_address(env: Env, username_hash: BytesN<32>) -> Option<BytesN<32>> {
+        storage::get_shielded_address(&env, &username_hash)
+    }
+
+    /// Returns `true` if a shielded address commitment has been stored for the given username hash.
+    pub fn is_shielded(env: Env, username_hash: BytesN<32>) -> bool {
+        storage::has_shielded_address(&env, &username_hash)
     }
 
     /// Resolve a username hash to its primary linked Stellar address.

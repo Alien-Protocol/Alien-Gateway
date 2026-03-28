@@ -26,7 +26,7 @@ pub enum ChainType {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PrivacyMode {
     Normal,
-    Private,
+    Shielded,
 }
 
 /// Public signals extracted from a Groth16 non-inclusion proof.

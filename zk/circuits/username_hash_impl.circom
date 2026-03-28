@@ -1,6 +1,7 @@
 pragma circom 2.0.0;
 
 include "circomlib/circuits/poseidon.circom";
+include "circomlib/circuits/comparators.circom";
 
 template UsernameHash() {
 
@@ -9,6 +10,17 @@ template UsernameHash() {
 
     // Public output
     signal output username_hash;
+
+    // Range check: enforce each username[i] is in [0, 127] (valid ASCII).
+    // LessThan(n) checks that in[0] < in[1] using n-bit arithmetic.
+    // Using 8 bits is sufficient since 128 < 2^8.
+    component rangeCheck[32];
+    for (var i = 0; i < 32; i++) {
+        rangeCheck[i] = LessThan(8);
+        rangeCheck[i].in[0] <== username[i];
+        rangeCheck[i].in[1] <== 128;
+        rangeCheck[i].out === 1;
+    }
 
     // Step 1: Hash in chunks of 4
     component h[8];

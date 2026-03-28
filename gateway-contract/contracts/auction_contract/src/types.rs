@@ -46,3 +46,29 @@ pub struct Bid {
     /// Ledger timestamp at which this bid was accepted.
     pub timestamp: u64,
 }
+
+#[contracttype]
+#[derive(Clone)]
+pub struct AuctionConfig {
+    pub username_hash: BytesN<32>,
+    pub start_time: u64,
+    pub end_time: u64,
+    pub min_bid: i128,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct AuctionState {
+    pub config: AuctionConfig,
+    pub status: AuctionStatus,
+    pub highest_bidder: Option<Address>,
+    pub highest_bid: i128,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct Bid {
+    pub bidder: Address,
+    pub amount: i128,
+    pub timestamp: u64,
+}

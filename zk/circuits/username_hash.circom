@@ -1,19 +1,28 @@
 pragma circom 2.0.0;
 
 include "circomlib/circuits/poseidon.circom";
+include "circomlib/circuits/comparators.circom";
 
 template UsernameHash() {
 
     // 32-character fixed username.
-    // AUDIT NOTE (F-03): Each element is an unconstrained field element.
-    // No range check enforces valid character values (e.g., 0–127 ASCII).
-    // Two distinct byte representations of the same logical username can
-    // produce different hashes, breaking uniqueness. Range checks must be
-    // enforced off-chain or via a dedicated range-check sub-circuit.
     signal input username[32];
 
     // Public output
     signal output username_hash;
+
+    // Range check: enforce each username[i] is in [0, 127] (valid ASCII).
+    // Fixes Finding F-03: without this constraint two distinct byte
+    // representations of the same logical username could produce different
+    // hashes, breaking uniqueness guarantees.
+    // LessThan(8) checks in[0] < in[1] using 8-bit arithmetic (128 < 2^8).
+    component rangeCheck[32];
+    for (var i = 0; i < 32; i++) {
+        rangeCheck[i] = LessThan(8);
+        rangeCheck[i].in[0] <== username[i];
+        rangeCheck[i].in[1] <== 128;
+        rangeCheck[i].out === 1;
+    }
 
     // Step 1: Hash in chunks of 4
     component h[8];

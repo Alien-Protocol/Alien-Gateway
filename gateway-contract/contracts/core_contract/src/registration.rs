@@ -1,5 +1,7 @@
+use crate::errors::CoreError;
 use crate::events::REGISTER_EVENT;
-use soroban_sdk::{contracttype, Address, BytesN, Env};
+use crate::storage::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD};
+use soroban_sdk::{contracttype, panic_with_error, Address, BytesN, Env};
 
 // Storage Keys
 #[contracttype]
@@ -22,11 +24,16 @@ impl Registration {
         // Check if commitment already exists
         let key = DataKey::Commitment(commitment.clone());
         if env.storage().persistent().has(&key) {
-            panic!("Commitment already registered");
+            panic_with_error!(&env, CoreError::AlreadyRegistered);
         }
 
         // Store commitment -> address mapping
         env.storage().persistent().set(&key, &caller);
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
 
         // Emit registration event
         #[allow(deprecated)]

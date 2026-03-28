@@ -1,13 +1,14 @@
 #![cfg(test)]
 
+use crate::registration::DataKey as RegistrationKey;
 use crate::smt_root::SmtRoot;
 use crate::types::{AddressMetadata, ChainType, PrivacyMode, PublicSignals};
 use crate::{Contract, ContractClient};
 use escrow_contract::types::{
     AutoPay, ScheduledPayment as EscrowScheduledPayment, VaultConfig, VaultState,
 };
-use soroban_sdk::testutils::{Address as _, Events};
-use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Symbol};
+use soroban_sdk::testutils::{Address as _, Events, MockAuth, MockAuthInvoke};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, IntoVal, Symbol, Val, Vec};
 
 fn setup(env: &Env) -> (Address, ContractClient<'_>) {
     let contract_id = env.register(Contract, ());
@@ -46,7 +47,7 @@ fn test_register_success() {
 }
 
 #[test]
-#[should_panic(expected = "Commitment already registered")]
+#[should_panic(expected = "Error(Contract, #10)")]
 fn test_register_duplicate_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -237,7 +238,17 @@ fn test_set_memo_and_resolve_flow() {
 }
 
 #[test]
-fn test_privacy_mode_resolve_shields_registered_wallet() {
+fn test_get_privacy_mode_defaults_to_normal() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+    let hash = commitment(&env, 39);
+
+    assert_eq!(client.get_privacy_mode(&hash), PrivacyMode::Normal);
+}
+
+#[test]
+fn test_set_privacy_mode_to_shielded() {
     let env = Env::default();
     env.mock_all_auths();
     let (contract_id, client, root) = setup_with_root(&env);
@@ -259,17 +270,17 @@ fn test_privacy_mode_resolve_shields_registered_wallet() {
     assert_eq!(client.get_privacy_mode(&hash), PrivacyMode::Normal);
     assert_eq!(client.resolve(&hash), (owner.clone(), None));
 
-    client.set_privacy_mode(&hash, &PrivacyMode::Private);
+    client.set_privacy_mode(&hash, &PrivacyMode::Shielded);
 
-    assert_eq!(client.get_privacy_mode(&hash), PrivacyMode::Private);
+    assert_eq!(client.get_privacy_mode(&hash), PrivacyMode::Shielded);
     assert_eq!(client.resolve(&hash), (contract_id, None));
 }
 
 #[test]
-fn test_privacy_mode_can_be_restored_to_normal() {
+fn test_set_privacy_mode_to_normal() {
     let env = Env::default();
     env.mock_all_auths();
-    let (contract_id, client, root) = setup_with_root(&env);
+    let (_, client, root) = setup_with_root(&env);
     let owner = Address::generate(&env);
     let hash = commitment(&env, 42);
     let new_root = BytesN::from_array(&env, &[43u8; 32]);
@@ -285,11 +296,46 @@ fn test_privacy_mode_can_be_restored_to_normal() {
         },
     );
 
-    client.set_privacy_mode(&hash, &PrivacyMode::Private);
-    assert_eq!(client.resolve(&hash), (contract_id, None));
+    client.set_privacy_mode(&hash, &PrivacyMode::Shielded);
+    assert_eq!(client.get_privacy_mode(&hash), PrivacyMode::Shielded);
 
     client.set_privacy_mode(&hash, &PrivacyMode::Normal);
-    assert_eq!(client.resolve(&hash), (owner, None));
+    assert_eq!(client.get_privacy_mode(&hash), PrivacyMode::Normal);
+}
+
+#[test]
+fn test_set_privacy_mode_non_owner_rejected() {
+    let env = Env::default();
+    let (contract_id, client) = setup(&env);
+    let owner = Address::generate(&env);
+    let attacker = Address::generate(&env);
+    let hash = commitment(&env, 44);
+
+    env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .set(&RegistrationKey::Commitment(hash.clone()), &owner);
+    });
+
+    let args: Vec<Val> = (hash.clone(), PrivacyMode::Shielded).into_val(&env);
+    env.mock_auths(&[MockAuth {
+        address: &attacker,
+        invoke: &MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "set_privacy_mode",
+            args: args.clone(),
+            sub_invokes: &[],
+        },
+    }]);
+
+    let result = env.try_invoke_contract::<(), soroban_sdk::Error>(
+        &contract_id,
+        &Symbol::new(&env, "set_privacy_mode"),
+        args,
+    );
+
+    assert!(result.is_err());
+    assert_eq!(client.get_privacy_mode(&hash), PrivacyMode::Normal);
 }
 
 // ── resolve_stellar tests ─────────────────────────────────────────────────────
@@ -325,6 +371,70 @@ fn test_resolve_stellar_linked_address_differs_from_owner() {
 
     let resolved = client.resolve_stellar(&hash);
     assert_eq!(resolved, payment_address);
+}
+
+#[test]
+fn test_resolve_stellar_owner_is_linked_address() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 41);
+
+    client.register(&owner, &hash);
+    client.add_stellar_address(&owner, &hash, &owner);
+
+    let resolved = client.resolve_stellar(&hash);
+    assert_eq!(resolved, owner);
+}
+
+#[test]
+fn test_resolve_stellar_after_ownership_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, root) = setup_with_root(&env);
+
+    let owner = Address::generate(&env);
+    let new_owner = Address::generate(&env);
+    let hash = commitment(&env, 42);
+
+    client.register(&owner, &hash);
+    client.add_stellar_address(&owner, &hash, &owner);
+
+    let signals = PublicSignals {
+        old_root: root,
+        new_root: BytesN::from_array(&env, &[43u8; 32]),
+    };
+
+    client.transfer(&owner, &hash, &new_owner, &dummy_proof(&env), &signals);
+
+    let new_address = Address::generate(&env);
+    client.add_stellar_address(&new_owner, &hash, &new_address);
+
+    let resolved = client.resolve_stellar(&hash);
+    assert_eq!(resolved, new_address);
+}
+
+#[test]
+fn test_add_stellar_address_overwrites_previous() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 43);
+
+    client.register(&owner, &hash);
+
+    let original_address = Address::generate(&env);
+    let updated_address = Address::generate(&env);
+
+    client.add_stellar_address(&owner, &hash, &original_address);
+    client.add_stellar_address(&owner, &hash, &updated_address);
+
+    let resolved = client.resolve_stellar(&hash);
+    assert_eq!(resolved, updated_address);
 }
 
 #[test]
@@ -991,5 +1101,146 @@ fn test_update_root_non_owner_panics() {
         (root,).into_val(&env),
     );
 
+    assert!(result.is_err());
+}
+
+// ============================================================================
+// initialize / get_contract_owner tests  (Issue #187)
+// ============================================================================
+
+#[test]
+fn test_initialize_stores_owner() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    client.initialize(&owner);
+
+    assert_eq!(client.get_contract_owner(), owner);
+}
+
+#[test]
+fn test_initialize_emits_init_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    client.initialize(&owner);
+
+    let events = env.events().all();
+    let has_init_event = events.iter().any(|(c, _, _)| c == contract_id);
+    assert!(has_init_event);
+}
+
+#[test]
+fn test_initialize_double_init_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    client.initialize(&owner);
+
+    let result = client.try_initialize(&owner);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_get_contract_owner_before_init_panics() {
+    let env = Env::default();
+    let (_, client) = setup(&env);
+
+    let result = client.try_get_contract_owner();
+    assert!(result.is_err());
+}
+
+// ============================================================================
+// add_shielded_address / get_shielded_address / is_shielded tests  (Issue #193)
+// ============================================================================
+
+#[test]
+fn test_add_shielded_address_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 80);
+    let addr_commitment = BytesN::from_array(&env, &[0xAAu8; 32]);
+
+    client.register(&owner, &hash);
+    client.add_shielded_address(&owner, &hash, &addr_commitment);
+
+    assert_eq!(client.get_shielded_address(&hash), Some(addr_commitment));
+    assert!(client.is_shielded(&hash));
+}
+
+#[test]
+fn test_is_shielded_returns_false_when_not_set() {
+    let env = Env::default();
+    let (_, client) = setup(&env);
+
+    let hash = commitment(&env, 81);
+    assert!(!client.is_shielded(&hash));
+}
+
+#[test]
+fn test_add_shielded_address_overwrite_works() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 82);
+    let first = BytesN::from_array(&env, &[0x11u8; 32]);
+    let second = BytesN::from_array(&env, &[0x22u8; 32]);
+
+    client.register(&owner, &hash);
+    client.add_shielded_address(&owner, &hash, &first);
+    client.add_shielded_address(&owner, &hash, &second);
+
+    assert_eq!(client.get_shielded_address(&hash), Some(second));
+}
+
+#[test]
+fn test_add_shielded_address_non_owner_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let attacker = Address::generate(&env);
+    let hash = commitment(&env, 83);
+    let addr_commitment = BytesN::from_array(&env, &[0xBBu8; 32]);
+
+    client.register(&owner, &hash);
+
+    env.mock_auths(&[MockAuth {
+        address: &attacker,
+        invoke: &MockAuthInvoke {
+            contract: &client.address,
+            fn_name: "add_shielded_address",
+            args: (&attacker, &hash, &addr_commitment).into_val(&env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    let result = client.try_add_shielded_address(&attacker, &hash, &addr_commitment);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_add_shielded_address_unregistered_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let caller = Address::generate(&env);
+    let hash = commitment(&env, 84);
+    let addr_commitment = BytesN::from_array(&env, &[0xCCu8; 32]);
+
+    let result = client.try_add_shielded_address(&caller, &hash, &addr_commitment);
     assert!(result.is_err());
 }

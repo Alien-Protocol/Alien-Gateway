@@ -1,30 +1,15 @@
-use soroban_sdk::{
-    contracterror, contractevent, contracttype, panic_with_error, Address, Bytes, BytesN, Env,
-};
+use soroban_sdk::{contracttype, panic_with_error, Address, Bytes, BytesN, Env};
 
 use crate::errors::ChainAddressError;
 use crate::events::{CHAIN_ADD, CHAIN_REM};
-use crate::registration::{DataKey as CommitmentKey, Registration};
-use crate::types::{ChainType, PrivacyMode};
+use crate::registration::DataKey as CommitmentKey;
+use crate::storage::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD};
+use crate::types::ChainType;
 
 #[contracttype]
 #[derive(Clone)]
 pub enum ChainAddrKey {
     ChainAddress(BytesN<32>, ChainType),
-    Privacy(BytesN<32>),
-}
-
-#[contractevent]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PrivSet {
-    pub username_hash: BytesN<32>,
-    pub mode: u32,
-}
-
-#[contracterror]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum AddressManagerError {
-    UsernameNotRegistered = 1,
 }
 
 pub struct AddressManager;
@@ -56,6 +41,11 @@ impl AddressManager {
 
         let key = ChainAddrKey::ChainAddress(username_hash.clone(), chain.clone());
         env.storage().persistent().set(&key, &address);
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
 
         #[allow(deprecated)]
         env.events()
@@ -95,34 +85,6 @@ impl AddressManager {
 
         #[allow(deprecated)]
         env.events().publish((CHAIN_REM,), (username_hash, chain));
-    }
-
-    pub fn set_privacy_mode(env: Env, username_hash: BytesN<32>, mode: PrivacyMode) {
-        let owner = Registration::get_owner(env.clone(), username_hash.clone())
-            .unwrap_or_else(|| panic_with_error!(&env, AddressManagerError::UsernameNotRegistered));
-
-        owner.require_auth();
-
-        let key = ChainAddrKey::Privacy(username_hash.clone());
-        env.storage().persistent().set(&key, &mode);
-
-        let mode_val: u32 = match mode {
-            PrivacyMode::Normal => 0,
-            PrivacyMode::Private => 1,
-        };
-        PrivSet {
-            username_hash,
-            mode: mode_val,
-        }
-        .publish(&env);
-    }
-
-    pub fn get_privacy_mode(env: Env, username_hash: BytesN<32>) -> PrivacyMode {
-        let key = ChainAddrKey::Privacy(username_hash);
-        env.storage()
-            .persistent()
-            .get(&key)
-            .unwrap_or(PrivacyMode::Normal)
     }
 
     fn validate_address(chain: &ChainType, address: &Bytes) -> bool {
