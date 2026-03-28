@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use crate::registration::DataKey as RegistrationKey;
 use crate::smt_root::SmtRoot;
 use crate::types::{AddressMetadata, ChainType, PrivacyMode, PublicSignals};
@@ -80,6 +78,29 @@ fn test_get_owner_returns_none_for_unknown() {
     let hash = commitment(&env, 13);
     let stored_owner = client.get_owner(&hash);
     assert_eq!(stored_owner, None);
+}
+
+#[test]
+fn test_get_username_returns_stored_username() {
+    let env = Env::default();
+    let (contract_id, client) = setup(&env);
+    let username = Symbol::new(&env, "alien_user");
+
+    env.as_contract(&contract_id, || {
+        env.storage()
+            .instance()
+            .set(&Symbol::new(&env, "Username"), &username);
+    });
+
+    assert_eq!(client.get_username(), Some(username));
+}
+
+#[test]
+fn test_get_username_returns_none_when_uninitialized() {
+    let env = Env::default();
+    let (_, client) = setup(&env);
+
+    assert_eq!(client.get_username(), None);
 }
 
 fn dummy_proof(env: &Env) -> Bytes {
