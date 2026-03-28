@@ -1,9 +1,13 @@
 export { MerkleProofGenerator } from "./proof";
 export { bigintToBytes32, encodeUsername, hashUsername } from "./hash";
+export { UsernameResolver } from "./resolver";
+export type { NetworkConfig, ResolveWithMemoResult } from "./resolver";
 export {
   AlienGatewayError,
+  NoAddressLinkedError,
   ProofGenerationError,
   TransactionFailedError,
+  UsernameNotFoundError,
   UsernameUnavailableError,
 } from "./errors";
 export { registerUsername } from "./register";

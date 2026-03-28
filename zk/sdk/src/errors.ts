@@ -32,3 +32,15 @@ export class TransactionFailedError extends AlienGatewayError {
     super(message, options);
   }
 }
+
+export class UsernameNotFoundError extends AlienGatewayError {
+  public constructor(public readonly username: string) {
+    super(`Username "${username}" not found.`);
+  }
+}
+
+export class NoAddressLinkedError extends AlienGatewayError {
+  public constructor(public readonly username: string) {
+    super(`Username "${username}" does not have a linked Stellar address.`);
+  }
+}
