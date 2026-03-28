@@ -74,6 +74,17 @@ jobs:
         done
         echo "✔ All circuits verified"
 
+    # - name: Trusted setup
+    #   run: |
+    #     chmod +x scripts/trusted-setup.sh
+    #     bash scripts/trusted-setup.sh
+
+    # - name: Test Non-Inclusion Proof
+    #   run: node tests/test_non_inclusion_proof.js
+
+    # - name: Test Update Proof
+    #   run: node tests/test_update_proof.js
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
