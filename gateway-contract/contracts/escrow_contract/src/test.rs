@@ -795,7 +795,10 @@ fn test_withdraw_success() {
     // Verify token transferred to owner
     let token_client = TokenClient::new(&env, &token);
     assert_eq!(token_client.balance(&owner), withdraw_amount);
-    assert_eq!(token_client.balance(&contract_id), initial_balance - withdraw_amount);
+    assert_eq!(
+        token_client.balance(&contract_id),
+        initial_balance - withdraw_amount
+    );
 }
 
 #[test]
