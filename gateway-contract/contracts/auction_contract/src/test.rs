@@ -540,12 +540,10 @@ fn test_create_auction_emits_event() {
     
     let event = events.last().expect("expected an AuctionCreated event");
     let (_, topics, _data) = event;
-    
-    let event_name = soroban_sdk::Symbol::try_from_val(
-        &env,
-        &topics.get(0).expect("expected event name topic"),
-    )
-    .expect("event name should deserialize");
+
+    let event_name =
+        soroban_sdk::Symbol::try_from_val(&env, &topics.get(0).expect("expected event name topic"))
+            .expect("event name should deserialize");
     assert_eq!(
         event_name,
         soroban_sdk::Symbol::new(&env, "auction_created_event")
@@ -570,14 +568,38 @@ fn test_get_auction_info() {
     let info1 = client
         .get_auction_info(&1)
         .expect("expected auction info after create");
-    assert_eq!(info1, (seller.clone(), asset.clone(), 100, 1000, 0, None, types::AuctionStatus::Open, false));
+    assert_eq!(
+        info1,
+        (
+            seller.clone(),
+            asset.clone(),
+            100,
+            1000,
+            0,
+            None,
+            types::AuctionStatus::Open,
+            false
+        )
+    );
 
     // After bid
     client.place_bid(&1, &bidder, &150);
     let info2 = client
         .get_auction_info(&1)
         .expect("expected auction info after bid");
-    assert_eq!(info2, (seller.clone(), asset.clone(), 100, 1000, 150, Some(bidder.clone()), types::AuctionStatus::Open, false));
+    assert_eq!(
+        info2,
+        (
+            seller.clone(),
+            asset.clone(),
+            100,
+            1000,
+            150,
+            Some(bidder.clone()),
+            types::AuctionStatus::Open,
+            false
+        )
+    );
 
     // After close
     env.ledger().set_timestamp(1001);
@@ -585,12 +607,36 @@ fn test_get_auction_info() {
     let info3 = client
         .get_auction_info(&1)
         .expect("expected auction info after close");
-    assert_eq!(info3, (seller.clone(), asset.clone(), 100, 1000, 150, Some(bidder.clone()), types::AuctionStatus::Closed, false));
+    assert_eq!(
+        info3,
+        (
+            seller.clone(),
+            asset.clone(),
+            100,
+            1000,
+            150,
+            Some(bidder.clone()),
+            types::AuctionStatus::Closed,
+            false
+        )
+    );
 
     // After claim
     client.claim(&1, &bidder);
     let info4 = client
         .get_auction_info(&1)
         .expect("expected auction info after claim");
-    assert_eq!(info4, (seller.clone(), asset.clone(), 100, 1000, 150, Some(bidder.clone()), types::AuctionStatus::Closed, true));
+    assert_eq!(
+        info4,
+        (
+            seller.clone(),
+            asset.clone(),
+            100,
+            1000,
+            150,
+            Some(bidder.clone()),
+            types::AuctionStatus::Closed,
+            true
+        )
+    );
 }
