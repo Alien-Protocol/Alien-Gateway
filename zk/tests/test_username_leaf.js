@@ -14,6 +14,7 @@ const WASM_PATH = path.join(
   `${CIRCUIT}_js`,
   `${CIRCUIT}.wasm`
 );
+const WITNESS_PATH = path.join(BUILD_DIR, "wtns", "witness.wtns");
 
 function encodeUsername(username) {
   const bytes = new Array(32).fill(0);
@@ -53,11 +54,9 @@ async function main() {
   const input = { username: encodeUsername(username) };
   const expectedHash = await computeUsernameHash(username);
 
-  const wasmBuffer = fs.readFileSync(WASM_PATH);
-  const { witness } = await snarkjs.wtns.calculateWitnessFromBuffer(
-    wasmBuffer,
-    input
-  );
+  fs.mkdirSync(path.dirname(WITNESS_PATH), { recursive: true });
+  await snarkjs.wtns.calculate(input, WASM_PATH, WITNESS_PATH, {});
+  const witness = await snarkjs.wtns.exportJson(WITNESS_PATH);
   const circuitHash = BigInt(witness[1]);
 
   assert.strictEqual(
