@@ -63,6 +63,74 @@ mod tests {
         assert!(found, "BID_RFDN event not found");
     }
 
+    #[test]
+    fn test_bid_placed_event_emitted() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let alice = Address::generate(&env);
+        let bob = Address::generate(&env);
+
+        let contract_id = env.register(AuctionContract, ());
+        let client = AuctionContractClient::new(&env, &contract_id);
+
+        let token_admin = Address::generate(&env);
+        let asset = env.register_stellar_asset_contract_v2(token_admin).address();
+        let token_admin_client = soroban_sdk::token::StellarAssetClient::new(&env, &asset);
+        // Mint to bidders so transfers succeed
+        token_admin_client.mint(&alice, &1000);
+        token_admin_client.mint(&bob, &1000);
+
+        env.as_contract(&contract_id, || {
+            use crate::storage;
+            use crate::types::AuctionStatus;
+            storage::auction_set_status(&env, 1, AuctionStatus::Open);
+            storage::auction_set_min_bid(&env, 1, 50);
+            storage::auction_set_end_time(&env, 1, env.ledger().timestamp() + 1000);
+            storage::auction_set_asset(&env, 1, &asset);
+            storage::auction_set_username_hash(&env, 1, &BytesN::from_array(&env, &[0u8; 32]));
+        });
+
+        // Alice places initial bid
+        client.place_bid(&1, &alice, &100_i128);
+
+        // Capture events and assert BID_PLCD event present
+        let events = env.events().all();
+        assert!(!events.is_empty());
+
+        let mut found = false;
+        for (_contract, topics, data) in events.iter().rev() {
+            // events::emit_bid_placed uses `.publish(env)` on `BidPlacedEvent`
+            // Soroban publishes it with the symbol of the struct name.
+            let event_name: Result<soroban_sdk::Symbol, _> = soroban_sdk::Symbol::try_from_val(&env, &topics.get(0).unwrap());
+            if let Ok(name) = event_name {
+                if name == soroban_sdk::Symbol::new(&env, "BidPlacedEvent") {
+                    let ev_bidder: Address = Address::try_from_val(&env, &topics.get(2).unwrap()).unwrap();
+                    let ev_amount: i128 = i128::try_from_val(&env, &data).unwrap();
+                    
+                    if ev_bidder == alice && ev_amount == 100_i128 {
+                        found = true;
+                        break;
+                    }
+                }
+            } else {
+                // In case it's explicitly published as BID_PLCD 
+                let event_name_str: Result<soroban_sdk::Symbol, _> = soroban_sdk::Symbol::try_from_val(&env, &topics.get(0).unwrap());
+                if let Ok(name) = event_name_str {
+                    if name == soroban_sdk::Symbol::new(&env, "BID_PLCD") {
+                        if let Ok((ev_bidder, ev_amount)) = <(Address, i128)>::try_from_val(&env, &data) {
+                            if ev_bidder == alice && ev_amount == 100_i128 {
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(found, "BID_PLCD event not found");
+    }
+
 }
 use super::*;
 use soroban_sdk::{

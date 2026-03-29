@@ -62,12 +62,9 @@ pub fn emit_auction_created(env: &Env, username_hash: &BytesN<32>, end_time: u64
 }
 
 pub fn emit_bid_placed(env: &Env, username_hash: &BytesN<32>, bidder: &Address, amount: i128) {
-    BidPlacedEvent {
-        username_hash: username_hash.clone(),
-        bidder: bidder.clone(),
-        amount,
-    }
-    .publish(env);
+    #[allow(deprecated)]
+    env.events()
+        .publish((BID_PLACED, username_hash.clone()), (bidder.clone(), amount));
 }
 
 pub fn emit_auction_closed(
