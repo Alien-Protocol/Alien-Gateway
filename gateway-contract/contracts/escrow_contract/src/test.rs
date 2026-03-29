@@ -1180,7 +1180,10 @@ fn test_get_auto_pay_returns_rule_after_setup() {
 
     // get_auto_pay must return Some with matching fields.
     let result = client.get_auto_pay(&from, &rule_id);
-    assert!(result.is_some(), "expected Some(AutoPay) after setup_auto_pay");
+    assert!(
+        result.is_some(),
+        "expected Some(AutoPay) after setup_auto_pay"
+    );
 
     let rule = result.unwrap();
     assert_eq!(rule.from, from);
@@ -1210,5 +1213,8 @@ fn test_get_auto_pay_returns_none_for_unknown_rule() {
 
     // rule_id 999 was never registered — must return None.
     let result = client.get_auto_pay(&from, &999u32);
-    assert!(result.is_none(), "expected None for an unregistered rule_id");
+    assert!(
+        result.is_none(),
+        "expected None for an unregistered rule_id"
+    );
 }
