@@ -1403,7 +1403,7 @@ fn test_auto_pay_self_payment_fails() {
     let result = client.try_setup_auto_pay(&from, &from, &100, &86400);
     assert!(matches!(
         result,
-        Err(Ok(err)) if err == Error::from_contract_error(EscrowError::SelfPaymentNotAllowed as u32)
+        Err(Ok(EscrowError::SelfPaymentNotAllowed))
     ));
 }
 

@@ -151,6 +151,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "auction_contract"
+version = "0.0.0"
+dependencies = [
+ "shared",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -263,6 +271,7 @@ name = "core_contract"
 version = "0.0.0"
 dependencies = [
  "escrow_contract",
+ "shared",
  "soroban-sdk",
 ]
 
@@ -594,6 +603,7 @@ checksum = "2bfcf67fea2815c2fc3b90873fae90957be12ff417335dfadc7f52927feb03b2"
 name = "escrow_contract"
 version = "0.0.0"
 dependencies = [
+ "shared",
  "soroban-sdk",
 ]
 
@@ -607,6 +617,7 @@ checksum = "ca81e6b4777c89fd810c25a4be2b1bd93ea034fbe58e6a75216a34c6b82c539b"
 name = "factory_contract"
 version = "0.0.0"
 dependencies = [
+ "shared",
  "soroban-sdk",
 ]
 
@@ -1244,6 +1255,13 @@ checksum = "75872d278a8f37ef87fa0ddbda7802605cb18344497949862c0d4dcb291eba60"
 dependencies = [
  "digest",
  "keccak",
+]
+
+[[package]]
+name = "shared"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
 ]
 
 [[package]]

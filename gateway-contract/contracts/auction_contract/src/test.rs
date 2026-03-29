@@ -108,7 +108,7 @@ fn test_claim_username_success() {
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #1)")]
+#[should_panic(expected = "HostError: Error(Contract, #1001)")]
 fn test_not_winner() {
     let env = Env::default();
     env.mock_all_auths();
@@ -127,7 +127,7 @@ fn test_not_winner() {
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #2)")]
+#[should_panic(expected = "HostError: Error(Contract, #1002)")]
 fn test_already_claimed() {
     let env = Env::default();
     env.mock_all_auths();
@@ -145,7 +145,7 @@ fn test_already_claimed() {
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #3)")]
+#[should_panic(expected = "HostError: Error(Contract, #1003)")]
 fn test_not_closed() {
     let env = Env::default();
     env.mock_all_auths();
@@ -163,7 +163,7 @@ fn test_not_closed() {
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #4)")]
+#[should_panic(expected = "HostError: Error(Contract, #1004)")]
 fn test_no_factory_contract() {
     let env = Env::default();
     env.mock_all_auths();
@@ -221,7 +221,7 @@ fn test_close_auction_zero_bid() {
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #9)")]
+#[should_panic(expected = "HostError: Error(Contract, #1009)")]
 fn test_close_auction_not_expired() {
     let env = Env::default();
     let contract_id = env.register(AuctionContract, ());
@@ -241,7 +241,7 @@ fn test_close_auction_not_expired() {
 }
 
 #[test]
-#[should_panic(expected = "HostError: Error(Contract, #8)")]
+#[should_panic(expected = "HostError: Error(Contract, #1008)")]
 fn test_close_auction_not_open() {
     let env = Env::default();
     let contract_id = env.register(AuctionContract, ());
@@ -347,7 +347,7 @@ fn test_refund_bid_success() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #1)")]
+#[should_panic(expected = "Error(Contract, #1001)")]
 fn test_refund_bid_winner_rejected() {
     let env = Env::default();
     env.mock_all_auths();
@@ -370,7 +370,7 @@ fn test_refund_bid_winner_rejected() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #2)")]
+#[should_panic(expected = "Error(Contract, #1002)")]
 fn test_refund_bid_double_refund_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -404,7 +404,7 @@ fn test_auction_no_bids_close() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #7)")]
+#[should_panic(expected = "Error(Contract, #1007)")]
 fn test_create_auction_zero_min_bid_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -413,7 +413,7 @@ fn test_create_auction_zero_min_bid_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #7)")]
+#[should_panic(expected = "Error(Contract, #1007)")]
 fn test_place_bid_too_low_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -424,7 +424,7 @@ fn test_place_bid_too_low_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #8)")]
+#[should_panic(expected = "Error(Contract, #1008)")]
 fn test_place_bid_after_close_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -436,7 +436,7 @@ fn test_place_bid_after_close_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #9)")]
+#[should_panic(expected = "Error(Contract, #1009)")]
 fn test_close_auction_early_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -447,7 +447,7 @@ fn test_close_auction_early_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #8)")]
+#[should_panic(expected = "Error(Contract, #1008)")]
 fn test_close_nonexistent_auction_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -456,7 +456,7 @@ fn test_close_nonexistent_auction_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #1)")]
+#[should_panic(expected = "Error(Contract, #1001)")]
 fn test_claim_not_winner_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -473,7 +473,7 @@ fn test_claim_not_winner_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #9)")]
+#[should_panic(expected = "Error(Contract, #1009)")]
 fn test_create_auction_past_end_time_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -483,7 +483,7 @@ fn test_create_auction_past_end_time_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #8)")]
+#[should_panic(expected = "Error(Contract, #1008)")]
 fn test_create_duplicate_auction_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -493,7 +493,7 @@ fn test_create_duplicate_auction_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #10)")]
+#[should_panic(expected = "Error(Contract, #1010)")]
 fn test_outbid_self_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -508,7 +508,7 @@ fn test_outbid_self_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #2)")]
+#[should_panic(expected = "Error(Contract, #1002)")]
 fn test_claim_twice_fails() {
     let env = Env::default();
     env.mock_all_auths();

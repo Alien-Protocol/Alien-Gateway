@@ -34,10 +34,7 @@ pub struct AuctionContract;
 /// Singleton flow: one auction per contract instance.
 #[contractimpl]
 impl AuctionContract {
-    pub fn close_auction(
-        env: Env,
-        username_hash: BytesN<32>,
-    ) -> Result<(), errors::AuctionError> {
+    pub fn close_auction(env: Env, username_hash: BytesN<32>) -> Result<(), errors::AuctionError> {
         singleton::close_auction(&env, username_hash)
     }
 
