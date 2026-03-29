@@ -203,7 +203,7 @@ pub fn auction_get_username_hash(env: &Env, id: u32) -> BytesN<32> {
     env.storage()
         .persistent()
         .get(&AuctionKey::UsernameHash(id))
-        .unwrap_or(BytesN::from_array(&env, &[0; 32]))
+        .unwrap_or(BytesN::from_array(env, &[0; 32]))
 }
 
 pub fn auction_set_username_hash(env: &Env, id: u32, username_hash: &BytesN<32>) {
