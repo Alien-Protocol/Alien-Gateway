@@ -955,6 +955,22 @@ fn test_transfer_same_owner_panics() {
     client.transfer(&owner, &hash, &owner, &dummy_proof(&env), &signals);
 }
 
+/// Verifies that `transfer_ownership` rejects a same-owner transfer with `SameOwner` (#8).
+#[test]
+#[should_panic(expected = "Error(Contract, #8)")]
+fn test_transfer_ownership_same_owner_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 35);
+
+    client.register(&owner, &hash);
+    // new_owner == current owner must return SameOwner (#8), not a generic host error.
+    client.transfer_ownership(&owner, &hash, &owner);
+}
+
 #[test]
 #[should_panic(expected = "Error(Contract, #7)")]
 fn test_transfer_non_owner_panics() {
