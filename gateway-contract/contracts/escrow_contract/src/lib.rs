@@ -113,6 +113,10 @@ impl EscrowContract {
     /// The vault owner must authorize this call. Tokens are transferred from the
     /// owner to this contract before the vault balance is updated.
     ///
+    /// ### Arguments
+    /// - `commitment`: The `BytesN<32>` identity commitment of the vault.
+    /// - `amount`: The amount of tokens to deposit. Must be > 0.
+    ///
     /// ### Errors
     /// - `InvalidAmount`: If `amount <= 0`.
     /// - `VaultNotFound`: If the vault does not exist.
@@ -297,6 +301,20 @@ impl EscrowContract {
         Ok(payment_id)
     }
 
+    /// Executes a previously scheduled payment once its release time has passed.
+    ///
+    /// Transfers the reserved tokens from this contract to the resolved owner of
+    /// the destination vault. Can be called by anyone (trustless keeper/bot).
+    ///
+    /// ### Arguments
+    /// - `payment_id`: The unique ID returned by [`EscrowContract::schedule_payment`].
+    ///
+    /// ### Errors
+    /// - `PaymentNotFound`: If no payment exists for `payment_id`.
+    /// - `PaymentAlreadyExecuted`: If the payment has already been executed.
+    /// - `PaymentNotYetDue`: If the current ledger time is before `release_at`.
+    /// - `VaultNotFound`: If the source vault no longer exists.
+    /// - `VaultInactive`: If the source vault has been cancelled.
     pub fn execute_scheduled(env: Env, payment_id: u32) {
         soroban_sdk::log!(
             &env,
@@ -375,6 +393,12 @@ impl EscrowContract {
     ///
     /// Marks the vault as inactive and refunds any remaining balance to the owner.
     /// Once cancelled, no new deposits/payments/auto-pays should be triggerable on it.
+    ///
+    /// ### Arguments
+    /// - `commitment`: The `BytesN<32>` identity commitment of the vault to cancel.
+    ///
+    /// ### Errors
+    /// - `VaultNotFound`: If no vault exists for `commitment`.
     pub fn cancel_vault(env: Env, commitment: BytesN<32>) {
         // 1) Load vault config + authenticate as owner.
         let config = read_vault_config(&env, &commitment)
