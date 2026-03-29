@@ -1175,7 +1175,7 @@ fn test_full_identity_lifecycle() {
     let root1 = BytesN::from_array(&env, &[1u8; 32]);
     client.update_smt_root(&root1);
     let events = env.events().all();
-    assert_eq!(events.len(), 1);  // Only ROOT_UPDATED event
+    assert_eq!(events.len(), 1); // Only ROOT_UPDATED event
     let root_event = events.last().unwrap();
     assert_event_symbol(&env, &root_event, ROOT_UPDATED);
     let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
@@ -1201,7 +1201,7 @@ fn test_full_identity_lifecycle() {
     client.transfer(&owner, &hash, &new_owner, &dummy_proof(&env), &signals);
 
     let events = env.events().all();
-    assert_eq!(events.len(), 2);  // transfer emits 2 events: ROOT_UPDATED + TRANSFER_EVENT
+    assert_eq!(events.len(), 2); // transfer emits 2 events: ROOT_UPDATED + TRANSFER_EVENT
     let transfer_event = events.last().unwrap();
     assert_event_symbol(&env, &transfer_event, TRANSFER_EVENT);
     let (commitment, from_owner, to_owner): (BytesN<32>, Address, Address) =
@@ -1223,7 +1223,7 @@ fn test_full_identity_lifecycle() {
     let root3 = BytesN::from_array(&env, &[3u8; 32]);
     client.update_smt_root(&root3);
     let events = env.events().all();
-    assert_eq!(events.len(), 1);  // Only ROOT_UPDATED event
+    assert_eq!(events.len(), 1); // Only ROOT_UPDATED event
     let root_event = events.last().unwrap();
     assert_event_symbol(&env, &root_event, ROOT_UPDATED);
     let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
