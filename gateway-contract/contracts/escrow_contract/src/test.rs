@@ -1063,7 +1063,10 @@ fn test_get_auto_pay_returns_rule_after_setup() {
     let rule_id = client.setup_auto_pay(&from, &to, &amount, &interval);
 
     let result = client.get_auto_pay(&from, &rule_id);
-    assert!(result.is_some(), "expected Some(AutoPay) after setup_auto_pay");
+    assert!(
+        result.is_some(),
+        "expected Some(AutoPay) after setup_auto_pay"
+    );
 
     let rule = result.unwrap();
     assert_eq!(rule.from, from);
@@ -1089,7 +1092,10 @@ fn test_get_auto_pay_returns_none_for_unknown_rule() {
     );
 
     let result = client.get_auto_pay(&from, &999u32);
-    assert!(result.is_none(), "expected None for an unregistered rule_id");
+    assert!(
+        result.is_none(),
+        "expected None for an unregistered rule_id"
+    );
 }
 
 // ─── is_vault_active tests ───────────────────────────────────────────────────
@@ -1109,7 +1115,14 @@ fn test_is_vault_active_returns_true_for_active_vault() {
     env.mock_all_auths();
     let (contract_id, client, token, _, from, _) = setup_test(&env);
 
-    create_vault(&env, &contract_id, &from, &Address::generate(&env), &token, 0);
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        0,
+    );
 
     assert_eq!(client.is_vault_active(&from), Some(true));
 }
@@ -1120,7 +1133,14 @@ fn test_is_vault_active_returns_false_for_cancelled_vault() {
     env.mock_all_auths();
     let (contract_id, client, token, _, from, _) = setup_test(&env);
 
-    create_vault(&env, &contract_id, &from, &Address::generate(&env), &token, 0);
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        0,
+    );
     client.cancel_vault(&from);
 
     assert_eq!(client.is_vault_active(&from), Some(false));
@@ -1132,7 +1152,14 @@ fn test_is_vault_active_disambiguates_cancelled_from_new() {
     env.mock_all_auths();
     let (contract_id, client, token, _, from, to) = setup_test(&env);
 
-    create_vault(&env, &contract_id, &from, &Address::generate(&env), &token, 0);
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        0,
+    );
     assert_eq!(client.is_vault_active(&from), Some(true));
 
     create_vault(&env, &contract_id, &to, &Address::generate(&env), &token, 0);

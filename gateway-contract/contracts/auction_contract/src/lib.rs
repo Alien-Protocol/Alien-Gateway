@@ -158,7 +158,12 @@ impl AuctionContract {
             // Record outbid amount for later refund by the bidder.
             let prev_amount = highest_bid;
             let existing_outbid = storage::auction_get_outbid_amount(&env, id, &prev_bidder);
-            storage::auction_set_outbid_amount(&env, id, &prev_bidder, existing_outbid + prev_amount);
+            storage::auction_set_outbid_amount(
+                &env,
+                id,
+                &prev_bidder,
+                existing_outbid + prev_amount,
+            );
         }
 
         storage::auction_set_highest_bidder(&env, id, &bidder);
@@ -174,7 +179,11 @@ impl AuctionContract {
         }
 
         let highest_bidder = storage::auction_get_highest_bidder(&env, id);
-        if highest_bidder.as_ref().map(|h| h == &bidder).unwrap_or(false) {
+        if highest_bidder
+            .as_ref()
+            .map(|h| h == &bidder)
+            .unwrap_or(false)
+        {
             soroban_sdk::panic_with_error!(&env, errors::AuctionError::NotWinner);
         }
 
@@ -194,7 +203,12 @@ impl AuctionContract {
         storage::auction_set_outbid_amount(&env, id, &bidder, 0);
 
         token.transfer(&env.current_contract_address(), &bidder, &refund_amount);
-        events::emit_bid_refunded(&env, &BytesN::from_array(&env, &[0u8; 32]), &bidder, refund_amount);
+        events::emit_bid_refunded(
+            &env,
+            &BytesN::from_array(&env, &[0u8; 32]),
+            &bidder,
+            refund_amount,
+        );
     }
 
     pub fn close_auction_by_id(env: Env, id: u32) {
