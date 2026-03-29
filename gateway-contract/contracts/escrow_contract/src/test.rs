@@ -197,10 +197,7 @@ fn test_get_scheduled_payment_returns_none_for_unknown_id() {
     let (_, client, _, _, _, _) = setup_test(&env);
 
     let result = client.get_scheduled_payment(&99_999u32);
-    assert!(
-        result.is_none(),
-        "expected None for an unknown payment_id"
-    );
+    assert!(result.is_none(), "expected None for an unknown payment_id");
 }
 
 #[test]
@@ -1282,7 +1279,14 @@ fn test_get_auto_pay_count_increments_after_setup() {
     env.mock_all_auths();
     let (contract_id, client, token, _, from, to) = setup_test(&env);
 
-    create_vault(&env, &contract_id, &from, &Address::generate(&env), &token, 1000);
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1000,
+    );
 
     assert_eq!(client.get_auto_pay_count(), 0);
 
@@ -1297,7 +1301,14 @@ fn test_get_auto_pay_count_increments_with_multiple_rules() {
     env.mock_all_auths();
     let (contract_id, client, token, _, from, to) = setup_test(&env);
 
-    create_vault(&env, &contract_id, &from, &Address::generate(&env), &token, 1000);
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1000,
+    );
 
     client.setup_auto_pay(&from, &to, &100, &86_400);
     assert_eq!(client.get_auto_pay_count(), 1);
@@ -1455,7 +1466,7 @@ fn test_cancel_auto_pay_success() {
 fn test_cancel_auto_pay_then_trigger_panics_with_not_found() {
     let env = Env::default();
     env.mock_all_auths();
-    let (contract_id, client, token, token_admin, from, to) = setup_test(&env);
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
 
     let owner = Address::generate(&env);
     create_vault(&env, &contract_id, &from, &owner, &token, 1_000);
@@ -1501,7 +1512,9 @@ fn test_cancel_auto_pay_non_owner_panics() {
     create_vault(&env, &contract_id, &from, &owner, &token, 1_000);
 
     // Register rule as the real owner (with full auth for setup only).
-    let rule_id = client.mock_all_auths().setup_auto_pay(&from, &to, &100, &86_400);
+    let rule_id = client
+        .mock_all_auths()
+        .setup_auto_pay(&from, &to, &100, &86_400);
 
     // Attempt to cancel as non_owner — must panic because owner.require_auth() fails.
     client

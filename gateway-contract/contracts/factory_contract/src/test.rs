@@ -1,9 +1,11 @@
-use soroban_sdk::testutils::{Address as _, Events as _, MockAuth, MockAuthInvoke};
+use soroban_sdk::testutils::{
+    storage::Persistent, Address as _, Events as _, Ledger, MockAuth, MockAuthInvoke,
+};
 use soroban_sdk::{contract, contractimpl, IntoVal, Symbol, TryFromVal, Val, Vec};
 use soroban_sdk::{Address, BytesN, Env};
 
 use crate::errors::FactoryError;
-use crate::events::{OWNERSHIP_TRANSFERRED, USERNAME_DEPLOYED};
+use crate::events::USERNAME_DEPLOYED;
 use crate::{FactoryContract, FactoryContractClient};
 
 #[contract]
@@ -218,7 +220,15 @@ fn test_deploy_username_duplicate_fails() {
     }]);
     factory.deploy_username(&hash, &owner);
 
-    // Do not re-mock auth here: the previous successful auth context is still valid for the next invocation
+    env.mock_auths(&[MockAuth {
+        address: &auction_contract,
+        invoke: &MockAuthInvoke {
+            contract: &factory_id,
+            fn_name: "deploy_username",
+            args: deploy_args,
+            sub_invokes: &[],
+        },
+    }]);
     let result = env.try_invoke_contract::<(), FactoryError>(
         &factory_id,
         &Symbol::new(&env, "deploy_username"),

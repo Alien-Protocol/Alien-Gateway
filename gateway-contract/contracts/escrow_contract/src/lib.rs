@@ -14,9 +14,10 @@ mod test;
 use crate::errors::EscrowError;
 use crate::events::Events;
 use crate::storage::{
-    increment_auto_pay_id, increment_payment_id, read_auto_pay, read_auto_pay_count,
-    read_registration_contract, read_vault_config, read_vault_state, write_auto_pay,
-    write_registration_contract, write_scheduled_payment, write_vault_config, write_vault_state,
+    delete_auto_pay, increment_auto_pay_id, increment_payment_id, read_auto_pay,
+    read_auto_pay_count, read_registration_contract, read_vault_config, read_vault_state,
+    write_auto_pay, write_registration_contract, write_scheduled_payment, write_vault_config,
+    write_vault_state,
 };
 use crate::types::{AutoPay, DataKey, ScheduledPayment, VaultConfig, VaultState};
 use soroban_sdk::{

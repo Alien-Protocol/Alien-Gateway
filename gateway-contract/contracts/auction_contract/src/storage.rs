@@ -1,5 +1,5 @@
 use crate::types::{AuctionStatus, DataKey};
-use soroban_sdk::{Address, Env, BytesN};
+use soroban_sdk::{Address, BytesN, Env};
 
 /// TTL constants for persistent storage entries.
 /// PERSISTENT_BUMP_AMOUNT: 30 days × 24h × 3600s / 5s per ledger = 518_400 ledgers
@@ -203,7 +203,7 @@ pub fn auction_get_username_hash(env: &Env, id: u32) -> BytesN<32> {
     env.storage()
         .persistent()
         .get(&AuctionKey::UsernameHash(id))
-        .unwrap_or(BytesN::from_array(&env, &[0; 32]))
+        .unwrap_or(BytesN::from_array(env, &[0; 32]))
 }
 
 pub fn auction_set_username_hash(env: &Env, id: u32, username_hash: &BytesN<32>) {

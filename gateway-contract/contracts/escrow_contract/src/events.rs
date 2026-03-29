@@ -1,4 +1,4 @@
-use soroban_sdk::{contractevent, symbol_short, Address, BytesN, Env};
+use soroban_sdk::{contractevent, symbol_short, Address, BytesN, Env, Symbol};
 
 /// Event emitted when a new payment is scheduled.
 #[contractevent]
@@ -213,8 +213,9 @@ impl Events {
     }
 
     /// Emits an AUTO_CANCEL event to the host with topics (symbol!("AUTO_CANCEL"), rule_id) and data (from).
+    #[allow(deprecated)]
     pub fn auto_cancel(env: &Env, rule_id: u32, from: BytesN<32>) {
-    let topics = (Symbol::new(env, "AUTO_CANCEL"), rule_id);
-    env.events().publish(topics, from);
-}
+        let topics = (Symbol::new(env, "AUTO_CANCEL"), rule_id);
+        env.events().publish(topics, from);
+    }
 }
