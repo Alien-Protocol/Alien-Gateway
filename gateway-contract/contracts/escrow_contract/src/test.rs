@@ -1,7 +1,5 @@
-#![cfg(test)]
-
 use crate::errors::EscrowError;
-use crate::types::{AutoPay, DataKey, ScheduledPayment, VaultConfig, VaultState};
+use crate::types::{AutoPay, DataKey, LegacyVault, ScheduledPayment, VaultConfig, VaultState};
 use crate::EscrowContract;
 use crate::EscrowContractClient;
 use soroban_sdk::testutils::{Address as _, Events as _, Ledger, MockAuth, MockAuthInvoke};
@@ -75,19 +73,75 @@ fn create_vault(
     });
 }
 
+fn create_legacy_vault(
+    env: &Env,
+    contract_id: &Address,
+    id: &BytesN<32>,
+    owner: &Address,
+    token: &Address,
+    balance: i128,
+) {
+    let legacy = LegacyVault {
+        owner: owner.clone(),
+        token: token.clone(),
+        created_at: 0,
+        balance,
+        is_active: true,
+    };
+    env.as_contract(contract_id, || {
+        env.storage()
+            .persistent()
+            .set(&DataKey::Vault(id.clone()), &legacy);
+    });
+}
+
 fn mint_token(env: &Env, token: &Address, token_admin: &Address, to: &Address, amount: i128) {
     let admin_client = StellarAssetClient::new(env, token);
     admin_client.mock_all_auths().mint(to, &amount);
     assert_eq!(admin_client.admin(), *token_admin);
 }
 
-fn _read_vault(env: &Env, contract_id: &Address, id: &BytesN<32>) -> VaultState {
-    env.as_contract(contract_id, || {
-        env.storage()
+#[test]
+fn test_legacy_vault_key_fallback_and_migration() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, token_admin, from, _to) = setup_test(&env);
+
+    let owner = Address::generate(&env);
+    create_legacy_vault(&env, &contract_id, &from, &owner, &token, 1000);
+
+    mint_token(&env, &token, &token_admin, &owner, 500);
+
+    // legacy storage should be readable through current getters.
+    assert_eq!(client.get_balance(&from), Some(1000));
+
+    // carry out a transition mutation (deposit) to verify the mutable split key is written.
+    client.deposit(&from, &200);
+    assert_eq!(client.get_balance(&from), Some(1200));
+
+    env.as_contract(&contract_id, || {
+        let config: Option<VaultConfig> = env
+            .storage()
             .persistent()
-            .get(&DataKey::Vault(id.clone()))
-            .unwrap()
-    })
+            .get(&DataKey::VaultConfig(from.clone()));
+        assert_eq!(config, None);
+
+        let state: VaultState = env
+            .storage()
+            .persistent()
+            .get(&DataKey::VaultState(from.clone()))
+            .unwrap();
+        assert_eq!(state.balance, 1200);
+        assert!(state.is_active);
+
+        let legacy: LegacyVault = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Vault(from.clone()))
+            .unwrap();
+        assert_eq!(legacy.owner, owner);
+        assert_eq!(legacy.token, token);
+    });
 }
 
 #[test]
@@ -1087,6 +1141,78 @@ fn test_cancel_vault_non_owner_panics() {
         .cancel_vault(&from);
 }
 
+
+
+// ─── get_auto_pay_count tests ─────────────────────────────────────────────────
+
+/// Returns 0 when no auto-pay rules have been created.
+#[test]
+fn test_get_auto_pay_count_returns_zero_before_any_rules() {
+    let env = Env::default();
+    let (_, client, _, _, _, _) = setup_test(&env);
+
+    assert_eq!(client.get_auto_pay_count(), 0);
+}
+
+/// Returns 1 after a single auto-pay rule is registered.
+#[test]
+fn test_get_auto_pay_count_increments_after_setup() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _, from, to) = setup_test(&env);
+
+    create_vault(&env, &contract_id, &from, &Address::generate(&env), &token, 1000);
+
+    assert_eq!(client.get_auto_pay_count(), 0);
+
+    client.setup_auto_pay(&from, &to, &100, &86_400);
+
+    assert_eq!(client.get_auto_pay_count(), 1);
+}
+
+/// Count grows monotonically with each additional rule.
+#[test]
+fn test_get_auto_pay_count_increments_with_multiple_rules() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _, from, to) = setup_test(&env);
+
+    create_vault(&env, &contract_id, &from, &Address::generate(&env), &token, 1000);
+
+    client.setup_auto_pay(&from, &to, &100, &86_400);
+    assert_eq!(client.get_auto_pay_count(), 1);
+
+    client.setup_auto_pay(&from, &to, &200, &43_200);
+    assert_eq!(client.get_auto_pay_count(), 2);
+
+    client.setup_auto_pay(&from, &to, &50, &3_600);
+    assert_eq!(client.get_auto_pay_count(), 3);
+// ─── initialize tests ──────────────────────────────────────────────
+
+#[test]
+fn test_initialize_twice_returns_already_initialized() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let reg_id = env.register(MockRegistrationContract, ());
+    let escrow_id = env.register(EscrowContract, ());
+    let client = EscrowContractClient::new(&env, &escrow_id);
+    let admin = Address::generate(&env);
+
+    // First initialization should succeed
+    client.initialize(&admin, &reg_id);
+
+    // Second initialization should fail with AlreadyInitialized
+    let result = client.try_initialize(&admin, &reg_id);
+    assert!(matches!(
+        result,
+        Err(Ok(err)) if err == Error::from_contract_error(EscrowError::AlreadyInitialized as u32)
+    ));
+// ─── get_auto_pay tests ──────────────────────────────────────────────
+
+/// Verifies that `get_auto_pay` returns `Some(AutoPay)` with the correct fields
+/// immediately after `setup_auto_pay` has been called.
+
 #[test]
 fn test_get_auto_pay_returns_rule_after_setup() {
     let env = Env::default();
@@ -1142,6 +1268,7 @@ fn test_get_auto_pay_returns_none_for_unknown_rule() {
         "expected None for an unregistered rule_id"
     );
 }
+
 
 
 // ─── is_vault_active tests ───────────────────────────────────────────────────
@@ -1214,5 +1341,25 @@ fn test_is_vault_active_disambiguates_cancelled_from_new() {
 
     let unknown = BytesN::from_array(&env, &[55u8; 32]);
     assert!(client.is_vault_active(&unknown).is_none());
+}
+
+
+// ─── auto-pay self-payment test ──────────────────────────────────────────────
+
+#[test]
+fn test_auto_pay_self_payment_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
+
+    let owner = Address::generate(&env);
+    create_vault(&env, &contract_id, &from, &owner, &token, 1000);
+
+    // Attempt to setup auto-pay with from == to (self-payment)
+    let result = client.try_setup_auto_pay(&from, &from, &100, &86400);
+    assert!(matches!(
+        result,
+        Err(Ok(err)) if err == Error::from_contract_error(EscrowError::SelfPaymentNotAllowed as u32)
+    ));
 }
 

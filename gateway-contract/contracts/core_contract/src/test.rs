@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use crate::registration::DataKey as RegistrationKey;
 use crate::smt_root::SmtRoot;
 use crate::types::{AddressMetadata, ChainType, PrivacyMode, PublicSignals};
@@ -562,6 +560,64 @@ fn test_add_stellar_address_not_registered_panics() {
 }
 
 #[test]
+fn test_remove_stellar_address_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 85);
+    let addr_a = Address::generate(&env);
+    let addr_b = Address::generate(&env);
+
+    client.register(&owner, &hash);
+    client.add_stellar_address(&owner, &hash, &addr_a);
+    client.add_stellar_address(&owner, &hash, &addr_b);
+
+    // addr_b is now primary; remove it
+    client.remove_stellar_address(&owner, &hash, &addr_b);
+
+    // addr_b must be absent from the history list
+    let addresses = client.get_stellar_addresses(&hash);
+    assert_eq!(addresses.len(), 1);
+    assert_eq!(addresses.get(0).unwrap(), addr_a);
+
+    // primary falls back to addr_a
+    assert_eq!(client.resolve_stellar(&hash), addr_a);
+}
+
+#[test]
+#[should_panic]
+fn test_remove_stellar_address_wrong_owner_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let attacker = Address::generate(&env);
+    let hash = commitment(&env, 86);
+    let addr = Address::generate(&env);
+
+    client.register(&owner, &hash);
+    client.add_stellar_address(&owner, &hash, &addr);
+    client.remove_stellar_address(&attacker, &hash, &addr);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_remove_stellar_address_not_registered_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let caller = Address::generate(&env);
+    let hash = commitment(&env, 87);
+    let addr = Address::generate(&env);
+
+    client.remove_stellar_address(&caller, &hash, &addr);
+}
+
+#[test]
 #[should_panic(expected = "Error(Contract, #3)")]
 fn test_register_resolver_duplicate_commitment_fails() {
     let env = Env::default();
@@ -727,6 +783,22 @@ fn test_update_smt_root_unauthorized_rejects() {
     let new_root = BytesN::from_array(&env, &[99u8; 32]);
     // Contract not initialized - no owner set, so should panic with NotFound
     client.update_smt_root(&new_root);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #11)")]
+fn test_update_smt_root_same_root_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    client.initialize(&owner);
+
+    let root = BytesN::from_array(&env, &[42u8; 32]);
+    client.update_smt_root(&root);
+    // Setting the same root again must fail with RootUnchanged (#11)
+    client.update_smt_root(&root);
 }
 
 // ── chain address helpers ─────────────────────────────────────────────────────

@@ -1,14 +1,16 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, vec, Address, BytesN, Env, IntoVal, Symbol};
-
 pub mod errors;
 pub mod events;
 pub mod storage;
 pub mod types;
 
-// Ensure event symbols are linked from the main contract entrypoint module.
+// Ensure event symbols are linked from the main
+// contract entrypoint module.
 use crate::events::{AUCTION_CLOSED, AUCTION_CREATED, BID_PLACED, BID_REFUNDED, USERNAME_CLAIMED};
 
+/// Ensures event symbol constants are referenced from the crate root so the
+/// linker does not strip them when compiling to WASM.
 #[allow(dead_code)]
 fn _touch_event_symbols() {
     let _ = (
@@ -31,7 +33,8 @@ impl AuctionContract {
     pub fn close_auction(
         env: Env,
         username_hash: BytesN<32>,
-    ) -> Result<(), crate::errors::AuctionError> {
+    ) -> Result<(), crate::errors::AuctionError>
+    {
         let status = storage::get_status(&env);
 
         // Reject if status is not Open
@@ -42,7 +45,6 @@ impl AuctionContract {
         // Get current ledger timestamp and end time
         let current_time = env.ledger().timestamp();
         let end_time = storage::get_end_time(&env);
-
         // Reject if timestamp < end_time
         if current_time < end_time {
             return Err(crate::errors::AuctionError::AuctionNotClosed);
@@ -50,14 +52,11 @@ impl AuctionContract {
 
         // Set status to Closed
         storage::set_status(&env, types::AuctionStatus::Closed);
-
         // Get winner and winning bid
         let winner = storage::get_highest_bidder(&env);
         let winning_bid = storage::get_highest_bid(&env);
-
         // Emit AUCTION_CLOSED event with winner and winning bid
         events::emit_auction_closed(&env, &username_hash, winner.clone(), winning_bid);
-
         Ok(())
     }
 
@@ -65,7 +64,8 @@ impl AuctionContract {
         env: Env,
         username_hash: BytesN<32>,
         claimer: Address,
-    ) -> Result<(), crate::errors::AuctionError> {
+    ) -> Result<(), crate::errors::AuctionError>
+    {
         claimer.require_auth();
 
         let status = storage::get_status(&env);
@@ -85,7 +85,6 @@ impl AuctionContract {
 
         // Set status to Claimed
         storage::set_status(&env, types::AuctionStatus::Claimed);
-
         // Call factory_contract.deploy_username(username_hash, claimer)
         let factory = storage::get_factory_contract(&env);
         if factory.is_none() {
@@ -101,7 +100,6 @@ impl AuctionContract {
 
         // Emit USERNAME_CLAIMED event
         events::emit_username_claimed(&env, &username_hash, &claimer);
-
         Ok(())
     }
 }
@@ -120,8 +118,8 @@ impl AuctionContract {
         if storage::auction_exists(&env, id) {
             soroban_sdk::panic_with_error!(&env, errors::AuctionError::AuctionNotOpen);
         }
-        if end_time <= env.ledger().timestamp() {
-            soroban_sdk::panic_with_error!(&env, errors::AuctionError::AuctionNotClosed);
+        if min_bid <= 0 {
+            soroban_sdk::panic_with_error!(&env, errors::AuctionError::BidTooLow);
         }
         storage::auction_set_seller(&env, id, &seller);
         storage::auction_set_asset(&env, id, &asset);
@@ -132,16 +130,10 @@ impl AuctionContract {
 
     pub fn place_bid(env: Env, id: u32, bidder: Address, amount: i128) {
         bidder.require_auth();
-        let status = storage::auction_get_status(&env, id);
-        if status != types::AuctionStatus::Open {
-            soroban_sdk::panic_with_error!(&env, errors::AuctionError::AuctionNotOpen);
-        }
-
         let end_time = storage::auction_get_end_time(&env, id);
         if env.ledger().timestamp() >= end_time {
             soroban_sdk::panic_with_error!(&env, errors::AuctionError::AuctionNotOpen);
         }
-
         let min_bid = storage::auction_get_min_bid(&env, id);
         let highest_bid = storage::auction_get_highest_bid(&env, id);
         if amount < min_bid || amount <= highest_bid {
@@ -155,10 +147,7 @@ impl AuctionContract {
         }
         let asset = storage::auction_get_asset(&env, id);
         let token = soroban_sdk::token::Client::new(&env, &asset);
-
-        // Accept bid funds into contract.
         token.transfer(&bidder, env.current_contract_address(), &amount);
-
         if let Some(prev_bidder) = storage::auction_get_highest_bidder(&env, id) {
             // Record outbid amount for later refund by the bidder.
             let prev_amount = highest_bid;
@@ -170,14 +159,13 @@ impl AuctionContract {
                 existing_outbid + prev_amount,
             );
         }
-
         storage::auction_set_highest_bidder(&env, id, &bidder);
         storage::auction_set_highest_bid(&env, id, amount);
     }
 
     pub fn refund_bid(env: Env, id: u32, bidder: Address) {
         bidder.require_auth();
-
+        // Ensure auction is closed
         let status = storage::auction_get_status(&env, id);
         if status != types::AuctionStatus::Closed {
             soroban_sdk::panic_with_error!(&env, errors::AuctionError::NotClosed);
@@ -191,19 +179,19 @@ impl AuctionContract {
         {
             soroban_sdk::panic_with_error!(&env, errors::AuctionError::NotWinner);
         }
-
+        // Check double refund
         if storage::auction_is_bid_refunded(&env, id, &bidder) {
             soroban_sdk::panic_with_error!(&env, errors::AuctionError::AlreadyClaimed);
         }
-
-        let refund_amount = storage::auction_get_outbid_amount(&env, id, &bidder);
-        if refund_amount <= 0 {
+        // Get outbid amount
+        let amount = storage::auction_get_outbid_amount(&env, id, &bidder);
+        if amount <= 0 {
             soroban_sdk::panic_with_error!(&env, errors::AuctionError::InvalidState);
         }
-
+        // Transfer asset back to bidder
         let asset = storage::auction_get_asset(&env, id);
         let token = soroban_sdk::token::Client::new(&env, &asset);
-
+        token.transfer(&env.current_contract_address(), &bidder, &amount);
         storage::auction_set_bid_refunded(&env, id, &bidder);
         storage::auction_set_outbid_amount(&env, id, &bidder, 0);
 
@@ -217,6 +205,9 @@ impl AuctionContract {
     }
 
     pub fn close_auction_by_id(env: Env, id: u32) {
+        if !storage::auction_exists(&env, id) {
+            soroban_sdk::panic_with_error!(&env, errors::AuctionError::AuctionNotOpen);
+        }
         let end_time = storage::auction_get_end_time(&env, id);
         if env.ledger().timestamp() < end_time {
             soroban_sdk::panic_with_error!(&env, errors::AuctionError::AuctionNotClosed);

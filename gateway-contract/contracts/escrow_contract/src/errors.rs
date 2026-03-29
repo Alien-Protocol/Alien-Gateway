@@ -36,4 +36,6 @@ pub enum EscrowError {
     VaultAlreadyExists = 15,
     /// The contract has already been initialized.
     AlreadyInitialized = 16,
+    /// Self-payment is not allowed (from == to).
+    SelfPaymentNotAllowed = 17,
 }

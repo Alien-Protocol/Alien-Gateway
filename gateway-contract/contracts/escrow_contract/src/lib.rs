@@ -14,9 +14,9 @@ mod test;
 use crate::errors::EscrowError;
 use crate::events::Events;
 use crate::storage::{
-    increment_auto_pay_id, increment_payment_id, read_auto_pay, read_registration_contract,
-    read_vault_config, read_vault_state, write_auto_pay, write_registration_contract,
-    write_scheduled_payment, write_vault_config, write_vault_state,
+    increment_auto_pay_id, increment_payment_id, read_auto_pay, read_auto_pay_count,
+    read_registration_contract, read_vault_config, read_vault_state, write_auto_pay,
+    write_registration_contract, write_scheduled_payment, write_vault_config, write_vault_state,
 };
 use crate::types::{AutoPay, DataKey, ScheduledPayment, VaultConfig, VaultState};
 use soroban_sdk::{
@@ -371,6 +371,14 @@ impl EscrowContract {
             return Err(EscrowError::InvalidInterval);
         }
 
+
+        // 2. Reject self-payment
+        if from == to {
+            return Err(EscrowError::SelfPaymentNotAllowed);
+        }
+
+        // 3. Read Vault config to verify it exists and get the token
+
         let config = read_vault_config(&env, &from).ok_or(EscrowError::VaultNotFound)?;
 
         config.owner.require_auth();
@@ -443,8 +451,22 @@ impl EscrowContract {
         read_vault_state(&env, &commitment).map(|state| state.balance)
     }
 
+
     pub fn get_auto_pay(env: Env, from: BytesN<32>, rule_id: u32) -> Option<AutoPay> {
         read_auto_pay(&env, &from, rule_id)
+
+    /// Returns the total number of auto-pay rules that have been created.
+    ///
+    /// This equals the next available rule ID, so rule IDs range from `0` to
+    /// `get_auto_pay_count() - 1`. Callers can use this to enumerate all rule
+    /// IDs without guessing.
+    ///
+    /// ### Returns
+    /// - `0` if no auto-pay rules have ever been registered.
+    /// - The count of rules created so far otherwise.
+    pub fn get_auto_pay_count(env: Env) -> u32 {
+        read_auto_pay_count(&env)
+
     }
 
     pub fn is_vault_active(env: Env, commitment: BytesN<32>) -> Option<bool> {
@@ -452,6 +474,8 @@ impl EscrowContract {
     }
 }
 
+/// Returns the owner address of the vault identified by `commitment`, panicking
+/// with `VaultNotFound` if no vault config exists.
 fn resolve(env: &Env, commitment: &BytesN<32>) -> Address {
     let config = read_vault_config(env, commitment)
         .unwrap_or_else(|| panic_with_error!(env, EscrowError::VaultNotFound));

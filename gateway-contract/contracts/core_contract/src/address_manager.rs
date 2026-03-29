@@ -1,7 +1,7 @@
 use soroban_sdk::{contracttype, panic_with_error, Address, Bytes, BytesN, Env, Vec};
 
 use crate::errors::{ChainAddressError, CoreError};
-use crate::events::{shielded_add_event, CHAIN_ADD, CHAIN_REM};
+use crate::events::{shielded_add_event, stellar_rem_event, CHAIN_ADD, CHAIN_REM};
 use crate::registration::{DataKey as CommitmentKey, Registration};
 use crate::storage::{self, PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD};
 use crate::types::ChainType;
@@ -182,6 +182,87 @@ impl AddressManager {
         env.storage().persistent().set(
             &storage::DataKey::StellarAddress(username_hash),
             &stellar_address,
+        );
+    }
+
+    /// Removes a specific Stellar address linked to a registered commitment.
+    ///
+    /// Removes the address from the history list. If it was the primary address
+    /// (`StellarAddress` key), the primary is updated to the most-recently added
+    /// remaining address, or the key is removed entirely when the list is empty.
+    /// Only the commitment owner can authorize this action.
+    ///
+    /// ### Arguments
+    /// - `env`: The Soroban contract environment.
+    /// - `caller`: The commitment owner. Must be authorized.
+    /// - `username_hash`: The 32-byte username commitment.
+    /// - `stellar_address`: The Stellar address to remove.
+    ///
+    /// ### Errors
+    /// - `NotFound`: If the commitment is not registered.
+    /// - `Unauthorized`: If the caller is not the commitment owner.
+    ///
+    /// ### Events
+    /// - Emits `STELLAR_REM` event with (username_hash, stellar_address).
+    pub fn remove_stellar_address(
+        env: Env,
+        caller: Address,
+        username_hash: BytesN<32>,
+        stellar_address: Address,
+    ) {
+        caller.require_auth();
+
+        let owner = Registration::get_owner(env.clone(), username_hash.clone())
+            .unwrap_or_else(|| panic_with_error!(&env, CoreError::NotFound));
+
+        if owner != caller {
+            panic_with_error!(&env, CoreError::Unauthorized);
+        }
+
+        // Rebuild the history list without the removed address.
+        let existing: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&storage::DataKey::StellarAddresses(username_hash.clone()))
+            .unwrap_or_else(|| Vec::new(&env));
+
+        let mut updated: Vec<Address> = Vec::new(&env);
+        for addr in existing.iter() {
+            if addr != stellar_address {
+                updated.push_back(addr);
+            }
+        }
+        env.storage().persistent().set(
+            &storage::DataKey::StellarAddresses(username_hash.clone()),
+            &updated,
+        );
+
+        // If the removed address was the current primary, update or clear it.
+        let primary: Option<Address> = env
+            .storage()
+            .persistent()
+            .get(&storage::DataKey::StellarAddress(username_hash.clone()));
+
+        if let Some(p) = primary {
+            if p == stellar_address {
+                if updated.is_empty() {
+                    env.storage()
+                        .persistent()
+                        .remove(&storage::DataKey::StellarAddress(username_hash.clone()));
+                } else {
+                    let last = updated.get(updated.len() - 1).unwrap();
+                    env.storage().persistent().set(
+                        &storage::DataKey::StellarAddress(username_hash.clone()),
+                        &last,
+                    );
+                }
+            }
+        }
+
+        #[allow(deprecated)]
+        env.events().publish(
+            (stellar_rem_event(&env),),
+            (username_hash, stellar_address),
         );
     }
 

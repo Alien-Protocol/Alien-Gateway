@@ -1,15 +1,19 @@
 [package]
-name = "auction_contract"
-version = "0.0.0"
+name = "gateway-auction"
+version = "0.1.0"
 edition = "2021"
-publish = false
+description = "Simple auction contract for testing BidRefundedEvent emission"
 
 [lib]
-crate-type = ["lib", "cdylib"]
-doctest = false
+crate-type = ["cdylib", "rlib"]
+
+[lints]
+workspace = true
 
 [dependencies]
 soroban-sdk = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
+
+ 

@@ -130,6 +130,16 @@ pub fn increment_auto_pay_id(env: &Env) -> Result<u32, EscrowError> {
     Ok(id)
 }
 
+/// Reads the current auto-pay counter from instance storage.
+///
+/// Returns `0` when no auto-pay rules have been created yet.
+pub fn read_auto_pay_count(env: &Env) -> u32 {
+    env.storage()
+        .instance()
+        .get(&DataKey::AutoPayCounter)
+        .unwrap_or(0)
+}
+
 /// Records an auto-pay rule in persistent storage under the composite key (vault, rule_id).
 pub fn write_auto_pay(env: &Env, commitment: &BytesN<32>, rule_id: u32, auto_pay: &AutoPay) {
     let key = DataKey::AutoPay(commitment.clone(), rule_id as u64);
