@@ -31,7 +31,6 @@ export type {
   SignalInput,
 } from "./types";
 export type { FreighterApi } from "./wallets/freighter";
-export type { WalletAdapter } from "./wallets";
 export type { XBullProvider } from "./wallets/xbull";
 export * from "./availability";
 export type {
@@ -43,5 +42,4 @@ export type {
   ResolveUsernameResult,
   SubmittedTransaction,
   TransactionStatus,
-  WalletAdapter,
 } from "./register";

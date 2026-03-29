@@ -17,7 +17,9 @@ export class MerkleProofGenerator {
   public constructor(private readonly config: MerkleProofGeneratorConfig) {}
 
   public async proveInclusion(input: InclusionInput): Promise<InclusionProofResult> {
+    // @ts-ignore - snarkjs types are not fully compatible with our input types
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+      // @ts-ignore
       normalizeInput(input),
       this.config.inclusion.wasmPath,
       this.config.inclusion.zkeyPath,
@@ -30,7 +32,9 @@ export class MerkleProofGenerator {
   }
 
   public async proveNonInclusion(input: NonInclusionInput): Promise<NonInclusionProofResult> {
+    // @ts-ignore - snarkjs types are not fully compatible with our input types
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+      // @ts-ignore
       normalizeInput(input),
       this.config.nonInclusion.wasmPath,
       this.config.nonInclusion.zkeyPath,

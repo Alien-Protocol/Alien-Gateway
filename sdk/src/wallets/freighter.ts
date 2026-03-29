@@ -1,3 +1,4 @@
+// @ts-ignore - @stellar/freighter-api is an optional dependency
 import type * as FreighterApiModule from "@stellar/freighter-api";
 import type { WalletAdapter } from "./shared";
 import { WalletDetectionError, assertBrowserEnvironment } from "./shared";
@@ -26,6 +27,7 @@ export class FreighterAdapter implements WalletAdapter {
     }
 
     try {
+      // @ts-ignore - @stellar/freighter-api is an optional dependency
       await import("@stellar/freighter-api");
       return true;
     } catch {
@@ -82,6 +84,7 @@ export class FreighterAdapter implements WalletAdapter {
     assertBrowserEnvironment();
 
     try {
+      // @ts-ignore - @stellar/freighter-api is an optional dependency
       return await import("@stellar/freighter-api");
     } catch (error) {
       throw new WalletDetectionError("Freighter is not available in this browser.");

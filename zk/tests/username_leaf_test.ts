@@ -84,47 +84,33 @@ async function computeUsernameHashTS(username: string): Promise<bigint> {
 // ── Test runner ──────────────────────────────────────────────────────────────
 
 async function runTests() {
-    console.log("\n── Username Leaf Circuit Test ────────────────────────────────\n");
-    
     const testUsername = "amar";
-    console.log(`Testing username: "${testUsername}"`);
     
     // Load circuit input
     const input = JSON.parse(fs.readFileSync(INPUT_PATH, 'utf8'));
-    console.log("✓ Loaded input from input.json");
     
     // Compute expected hash using TypeScript implementation
     const expectedHash = await computeUsernameHashTS(testUsername);
-    console.log(`✓ TypeScript Poseidon hash: ${expectedHash.toString()}`);
     
     // Generate witness using circuit
-    console.log("\n── Generating circuit witness ───────────────────────────────");
-    
     const wasmBuffer = fs.readFileSync(WASM_PATH);
     const { witness } = await snarkjs.wtns.calculateWitnessFromBuffer(wasmBuffer, input);
-    console.log("✓ Witness generated successfully");
     
     // Extract leaf output from witness
     // The leaf output should be at index 1 (after the first signal which is usually a dummy)
     const circuitHash = BigInt(witness[1]);
-    console.log(`✓ Circuit hash output: ${circuitHash.toString()}`);
     
     // Verify circuit output matches TypeScript computation
-    console.log("\n── Verification ─────────────────────────────────────────────");
-    
     assert.strictEqual(
         circuitHash.toString(),
         expectedHash.toString(),
         "Circuit hash should match TypeScript Poseidon hash"
     );
-    console.log("✓ Circuit output matches TypeScript computation");
     
     // Test with different usernames
     const testCases = ["test", "user123", "alice", ""];
     
     for (const testCase of testCases) {
-        console.log(`\n── Testing username: "${testCase}" ────────────────────────`);
-        
         const bytes = usernameToBytes(testCase);
         const testCaseInput = { username: bytes };
         
@@ -141,21 +127,11 @@ async function runTests() {
             testCaseExpected.toString(),
             `Hash mismatch for username "${testCase}"`
         );
-        
-        console.log(`✓ Hash: ${testCaseCircuitHash.toString()}`);
     }
-    
-    console.log("\n══ All tests passed! ══");
-    console.log("\n── Username Encoding Summary ────────────────────────────────");
-    console.log("Format: 32-byte array, ASCII values, zero-padded");
-    console.log("Example 'amar': [97, 109, 97, 114, 0, 0, ..., 0]");
-    console.log("Hash algorithm: Poseidon with 4-element chunking");
-    console.log("✓ Circuit and TypeScript implementations match perfectly");
 }
 
 // ── Run tests ────────────────────────────────────────────────────────────────
 
 runTests().catch(err => {
-    console.error(`\n✘ Test failed: ${err.message ?? err}`);
     process.exit(1);
 });

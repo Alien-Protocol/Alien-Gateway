@@ -1,9 +1,9 @@
 import snarkjs from "snarkjs";
 import {
   MerkleProofGenerator,
-  MerkleProofGeneratorConfig,
 } from "./proof";
-import { hashUsername } from "./usernameHasher";
+import type { MerkleProofGeneratorConfig } from "./types";
+import { hashUsername } from "./hash";
 
 export interface SMTData {
   nodes: any;
@@ -24,37 +24,34 @@ export async function isUsernameAvailable(
   merkleTree: SMTData,
   config: UsernameAvailabilityConfig
 ): Promise<boolean> {
-  try {
-    // 1. Hash username
-    const usernameHash = hashUsername(username);
+  // 1. Hash username
+  const usernameHash = hashUsername(username);
 
-    // 2. Build circuit input (still your responsibility)
-    const input = buildNonInclusionInput(
-      usernameHash,
-      smtRoot,
-      merkleTree
-    );
+  // 2. Build circuit input (still your responsibility)
+  // @ts-ignore - buildNonInclusionInput is a helper function to be provided by user
+  const input = buildNonInclusionInput(
+    usernameHash,
+    smtRoot,
+    merkleTree
+  );
 
-    // 3. Use SDK proof generator (✅ no hardcoded paths)
-    const generator = new MerkleProofGenerator(
-      config.proofConfig
-    );
+  // 3. Use SDK proof generator (✅ no hardcoded paths)
+  const generator = new MerkleProofGenerator(
+    config.proofConfig
+  );
 
-    const { proof, publicSignals } =
-      await generator.proveNonInclusion(input);
+  const { proof, publicSignals } =
+    await generator.proveNonInclusion(input);
 
-    // 4. Verify using configurable vkey path
-    const vKey = await fetchVerificationKey(config.vkeyPath);
+  // 4. Verify using configurable vkey path
+  // @ts-ignore - fetchVerificationKey is a helper function to be provided by user
+  const vKey = await fetchVerificationKey(config.vkeyPath);
 
-    const isValid = await snarkjs.groth16.verify(
-      vKey,
-      publicSignals,
-      proof
-    );
+  const isValid = await snarkjs.groth16.verify(
+    vKey,
+    publicSignals,
+    proof
+  );
 
-    return isValid;
-  } catch (err) {
-    console.error("Username availability check failed:", err);
-    return false;
-  }
+  return isValid;
 }

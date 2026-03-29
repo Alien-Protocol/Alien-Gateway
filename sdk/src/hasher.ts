@@ -1,3 +1,4 @@
+// @ts-ignore - circomlibjs doesn't have TypeScript definitions
 import { buildPoseidon } from "circomlibjs";
 
 /**

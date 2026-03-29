@@ -1,3 +1,4 @@
+// @ts-ignore - circomlibjs doesn't have TypeScript definitions
 const { buildPoseidon } = require("circomlibjs");
 
 const USERNAME_SIGNAL_LENGTH = 32;
