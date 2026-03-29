@@ -89,6 +89,21 @@ fn test_get_owner_returns_none_for_unknown() {
     assert_eq!(stored_owner, None);
 }
 
+#[test]
+fn test_get_owner_nonexistent_commitment() {
+    // Explicit test to verify get_owner returns None for nonexistent commitment
+    // and does not panic on missing keys
+    let env = Env::default();
+    let (_, client) = setup(&env);
+
+    // Use a commitment that was never registered
+    let nonexistent_hash = BytesN::from_array(&env, &[0xFF; 32]);
+    
+    // Should return None, not panic
+    let result = client.get_owner(&nonexistent_hash);
+    assert_eq!(result, None, "get_owner must return None for nonexistent commitment");
+}
+
 // Commented out - get_username method no longer exists in core contract
 /*
 #[test]
