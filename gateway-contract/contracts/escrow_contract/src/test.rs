@@ -1702,3 +1702,79 @@ fn test_cancel_auto_pay_vault_not_found() {
         result
     );
 }
+
+// ─── is_vault_active tests ────────────────────────────────────────────────────
+
+/// A vault that has been created (and not cancelled) must return `Some(true)`.
+///
+/// This is the primary happy-path: the commitment exists in storage and
+/// `is_active` is `true`.
+#[test]
+fn test_is_vault_active_returns_some_true_for_active_vault() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _, from, _) = setup_test(&env);
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        0,
+    );
+
+    assert_eq!(
+        client.is_vault_active(&from),
+        Some(true),
+        "active vault must return Some(true)"
+    );
+}
+
+/// A vault that has been cancelled must return `Some(false)`.
+///
+/// This proves the query distinguishes a cancelled vault from one that
+/// was never created — the whole point of this three-way return type.
+#[test]
+fn test_is_vault_active_returns_some_false_for_cancelled_vault() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _, from, _) = setup_test(&env);
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        0,
+    );
+
+    // Cancel the vault so is_active becomes false.
+    client.cancel_vault(&from);
+
+    assert_eq!(
+        client.is_vault_active(&from),
+        Some(false),
+        "cancelled vault must return Some(false)"
+    );
+}
+
+/// A commitment that was never deposited into must return `None`.
+///
+/// This covers the "vault does not exist" branch: no `VaultState` record
+/// exists in storage, so the function must return `None` rather than panic.
+#[test]
+fn test_is_vault_active_returns_none_for_nonexistent_vault() {
+    let env = Env::default();
+    let (_, client, _, _, _, _) = setup_test(&env);
+
+    // Use a commitment seed that was never passed to create_vault.
+    let nonexistent = BytesN::from_array(&env, &[0xDEu8; 32]);
+
+    assert_eq!(
+        client.is_vault_active(&nonexistent),
+        None,
+        "nonexistent vault must return None"
+    );
+}

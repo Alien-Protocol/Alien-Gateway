@@ -14,9 +14,10 @@ mod test;
 use crate::errors::EscrowError;
 use crate::events::Events;
 use crate::storage::{
-    increment_auto_pay_id, increment_payment_id, read_auto_pay, read_auto_pay_count,
-    read_registration_contract, read_vault_config, read_vault_state, write_auto_pay,
-    write_registration_contract, write_scheduled_payment, write_vault_config, write_vault_state,
+    delete_auto_pay, increment_auto_pay_id, increment_payment_id, read_auto_pay,
+    read_auto_pay_count, read_registration_contract, read_vault_config, read_vault_state,
+    write_auto_pay, write_registration_contract, write_scheduled_payment, write_vault_config,
+    write_vault_state,
 };
 use crate::types::{AutoPay, DataKey, ScheduledPayment, VaultConfig, VaultState};
 use soroban_sdk::{
@@ -621,6 +622,23 @@ impl EscrowContract {
     pub fn get_scheduled_payment(env: Env, payment_id: u32) -> Option<ScheduledPayment> {
         let key = DataKey::ScheduledPayment(payment_id);
         env.storage().persistent().get(&key)
+    }
+
+    /// Returns the active status of a vault identified by its commitment.
+    ///
+    /// This three-way query disambiguates the case of a cancelled-but-empty vault
+    /// from a commitment that was never registered — something a plain balance
+    /// check or storage `has()` call cannot do.
+    ///
+    /// ### Arguments
+    /// - `commitment`: The `BytesN<32>` identity commitment of the vault.
+    ///
+    /// ### Returns
+    /// - `None`         — no vault has ever been created for this commitment.
+    /// - `Some(true)`   — the vault exists and is currently active.
+    /// - `Some(false)`  — the vault exists but has been cancelled.
+    pub fn is_vault_active(env: Env, commitment: BytesN<32>) -> Option<bool> {
+        read_vault_state(&env, &commitment).map(|state| state.is_active)
     }
 }
 
