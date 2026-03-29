@@ -132,14 +132,14 @@ None.
 
 ---
 
-## Function: `get_auction_contract`
+## Function: `auction_contract`
 
 Returns the auction contract address stored during `configure`, or `None` if not yet configured.
 
 ### Interface
 
 ```rust
-pub fn get_auction_contract(env: Env) -> Option<Address>
+pub fn auction_contract(env: Env) -> Option<Address>
 ```
 
 ### Requirements & Validation
@@ -156,14 +156,14 @@ None.
 
 ---
 
-## Function: `get_core_contract`
+## Function: `core_contract`
 
 Returns the core resolver contract address stored during `configure`, or `None` if not yet configured.
 
 ### Interface
 
 ```rust
-pub fn get_core_contract(env: Env) -> Option<Address>
+pub fn core_contract(env: Env) -> Option<Address>
 ```
 
 ### Requirements & Validation

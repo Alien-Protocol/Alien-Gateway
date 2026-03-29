@@ -17,8 +17,8 @@ use soroban_sdk::{contract, contractimpl, panic_with_error, Address, BytesN, Env
 use crate::errors::FactoryError;
 use crate::events::{emit_ownership_transferred, emit_username_deployed};
 use crate::storage::{
-    get_auction_contract, get_core_contract, get_username, has_username, set_auction_contract,
-    set_core_contract, set_username,
+    get_auction_contract as read_auction_contract, get_core_contract as read_core_contract,
+    get_username, has_username, set_auction_contract, set_core_contract, set_username,
 };
 use crate::types::UsernameRecord;
 
@@ -66,7 +66,7 @@ impl FactoryContract {
     ///
     /// O(1) - constant time storage lookups and persistence.
     pub fn deploy_username(env: Env, username_hash: BytesN<32>, owner: Address) {
-        let auction_contract = match get_auction_contract(&env) {
+        let auction_contract = match read_auction_contract(&env) {
             Some(address) => address,
             None => panic_with_error!(&env, FactoryError::Unauthorized),
         };
@@ -76,7 +76,7 @@ impl FactoryContract {
             panic_with_error!(&env, FactoryError::AlreadyDeployed);
         }
 
-        let core_contract = match get_core_contract(&env) {
+        let core_contract = match read_core_contract(&env) {
             Some(address) => address,
             None => panic_with_error!(&env, FactoryError::CoreContractNotConfigured),
         };
@@ -107,7 +107,7 @@ impl FactoryContract {
     /// * `username_hash` - The 32-byte hash identifying the unique username.
     /// * `new_owner` - The address that will be the new owner.
     pub fn transfer_username(env: Env, username_hash: BytesN<32>, new_owner: Address) {
-        let auction_contract = match get_auction_contract(&env) {
+        let auction_contract = match read_auction_contract(&env) {
             Some(address) => address,
             None => panic_with_error!(&env, FactoryError::Unauthorized),
         };
@@ -177,8 +177,8 @@ impl FactoryContract {
     ///
     /// * `Some(Address)` if configured.
     /// * `None` otherwise.
-    pub fn get_auction_contract(env: Env) -> Option<Address> {
-        get_auction_contract(&env)
+    pub fn auction_contract(env: Env) -> Option<Address> {
+        read_auction_contract(&env)
     }
 
     /// Retrieves the currently configured core contract address.
@@ -191,7 +191,7 @@ impl FactoryContract {
     ///
     /// * `Some(Address)` if configured.
     /// * `None` otherwise.
-    pub fn get_core_contract(env: Env) -> Option<Address> {
-        get_core_contract(&env)
+    pub fn core_contract(env: Env) -> Option<Address> {
+        read_core_contract(&env)
     }
 }
