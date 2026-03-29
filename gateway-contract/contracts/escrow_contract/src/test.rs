@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 use crate::errors::EscrowError;
 use crate::types::{AutoPay, DataKey, LegacyVault, ScheduledPayment, VaultConfig, VaultState};
 use crate::EscrowContract;

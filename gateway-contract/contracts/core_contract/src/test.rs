@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 use crate::registration::DataKey as RegistrationKey;
 use crate::smt_root::SmtRoot;
 use crate::types::{AddressMetadata, ChainType, PrivacyMode, PublicSignals};
@@ -27,7 +29,7 @@ fn commitment(env: &Env, seed: u8) -> BytesN<32> {
     BytesN::from_array(env, &[seed; 32])
 }
 
-fn assert_event_symbol(env: &Env, event: &(Address, std::vec::Vec<Val>, Val), expected: Symbol) {
+fn assert_event_symbol(env: &Env, event: &(Address, Vec<Val>, Val), expected: Symbol) {
     use soroban_sdk::TryFromVal;
 
     let event_name = Symbol::try_from_val(env, &event.1.get(0).unwrap()).unwrap();
@@ -87,6 +89,8 @@ fn test_get_owner_returns_none_for_unknown() {
     assert_eq!(stored_owner, None);
 }
 
+// Commented out - get_username method no longer exists in core contract
+/*
 #[test]
 fn test_get_username_returns_stored_username() {
     let env = Env::default();
@@ -109,6 +113,7 @@ fn test_get_username_returns_none_when_uninitialized() {
 
     assert_eq!(client.get_username(), None);
 }
+*/
 
 fn dummy_proof(env: &Env) -> Bytes {
     Bytes::from_slice(env, &[1u8; 64])
@@ -1157,7 +1162,7 @@ fn test_full_identity_lifecycle() {
     let events = env.events().all();
     assert_eq!(events.len(), events_len + 1);
     let register_event = events.last().unwrap();
-    assert_event_symbol(&env, register_event, REGISTER_EVENT);
+    assert_event_symbol(&env, &register_event, REGISTER_EVENT);
     let (commitment, registered_owner): (BytesN<32>, Address) = register_event.2.into_val(&env);
     assert_eq!(commitment, hash);
     assert_eq!(registered_owner, owner);
@@ -1173,7 +1178,7 @@ fn test_full_identity_lifecycle() {
     let events = env.events().all();
     assert_eq!(events.len(), events_len + 1);
     let root_event = events.last().unwrap();
-    assert_event_symbol(&env, root_event, ROOT_UPDATED);
+    assert_event_symbol(&env, &root_event, ROOT_UPDATED);
     let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
     assert_eq!(old_root, None);
     assert_eq!(new_root, root1);
@@ -1201,15 +1206,15 @@ fn test_full_identity_lifecycle() {
     let events = env.events().all();
     assert_eq!(events.len(), events_len + 2);
     let transfer_event = events.last().unwrap();
-    assert_event_symbol(&env, transfer_event, TRANSFER_EVENT);
+    assert_event_symbol(&env, &transfer_event, TRANSFER_EVENT);
     let (commitment, from_owner, to_owner): (BytesN<32>, Address, Address) =
         transfer_event.2.into_val(&env);
     assert_eq!(commitment, hash);
     assert_eq!(from_owner, owner);
     assert_eq!(to_owner, new_owner);
 
-    let root_event = &events[events.len() - 2];
-    assert_event_symbol(&env, root_event, ROOT_UPDATED);
+    let root_event = events.get(events.len() - 2).unwrap();
+    assert_event_symbol(&env, &root_event, ROOT_UPDATED);
     let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
     assert_eq!(old_root, Some(root1));
     assert_eq!(new_root, root2);
@@ -1224,7 +1229,7 @@ fn test_full_identity_lifecycle() {
     let events = env.events().all();
     assert_eq!(events.len(), events_len + 1);
     let root_event = events.last().unwrap();
-    assert_event_symbol(&env, root_event, ROOT_UPDATED);
+    assert_event_symbol(&env, &root_event, ROOT_UPDATED);
     let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
     assert_eq!(old_root, Some(root2));
     assert_eq!(new_root, root3);

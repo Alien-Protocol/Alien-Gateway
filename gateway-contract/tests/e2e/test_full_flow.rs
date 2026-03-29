@@ -1,4 +1,5 @@
 #![cfg(test)]
+#![allow(clippy::unwrap_used)]
 extern crate soroban_sdk;
 use core_contract::types::PublicSignals;
 use core_contract::{Contract, ContractClient};
