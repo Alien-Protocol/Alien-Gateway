@@ -34,10 +34,7 @@ pub struct AuctionContract;
 /// Singleton flow: one auction per contract instance.
 #[contractimpl]
 impl AuctionContract {
-    pub fn close_auction(
-        env: Env,
-        username_hash: BytesN<32>,
-    ) -> Result<(), errors::AuctionError> {
+    pub fn close_auction(env: Env, username_hash: BytesN<32>) -> Result<(), errors::AuctionError> {
         singleton::close_auction(&env, username_hash)
     }
 
@@ -108,12 +105,7 @@ impl AuctionContract {
         storage::auction_set_outbid_amount(&env, id, &bidder, 0);
 
         // Emit a single refund event
-        events::emit_bid_refunded(
-            &env,
-            &BytesN::from_array(&env, &[0u8; 32]),
-            &bidder,
-            amount,
-        );
+        events::emit_bid_refunded(&env, &BytesN::from_array(&env, &[0u8; 32]), &bidder, amount);
     }
 
     pub fn close_auction_by_id(env: Env, id: u32) {

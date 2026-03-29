@@ -196,10 +196,7 @@ fn test_get_scheduled_payment_returns_none_for_unknown_id() {
     let env = Env::default();
     let (_, client, _, _, _, _) = setup_test(&env);
 
-    assert!(
-        result.is_none(),
-        "expected None for an unknown payment_id"
-    );
+    assert!(result.is_none(), "expected None for an unknown payment_id");
 }
 
 #[test]

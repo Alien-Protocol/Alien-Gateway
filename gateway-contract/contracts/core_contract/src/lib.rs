@@ -188,3 +188,4 @@ impl Contract {
     /// Checks if a commitment has a shielded address. See [address_manager::AddressManager::is_shielded].
     pub fn is_shielded(e: Env, h: BytesN<32>) -> bool { AddressManager::is_shielded(e, h) }
 }
+
