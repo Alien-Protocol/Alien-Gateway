@@ -64,6 +64,7 @@ mod tests {
         }
     }
 }
+
 use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Events, Ledger},
@@ -564,7 +565,7 @@ fn test_get_auction_info() {
     assert_eq!(client.get_auction_info(&1), None);
 
     client.create_auction(&1, &seller, &asset, &100, &1000u64);
-    
+
     // Initial state
     let info1 = client
         .get_auction_info(&1)

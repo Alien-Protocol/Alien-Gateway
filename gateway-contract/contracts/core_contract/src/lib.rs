@@ -189,3 +189,4 @@ impl Contract {
     pub fn is_shielded(e: Env, h: BytesN<32>) -> bool { AddressManager::is_shielded(e, h) }
 }
 
+
