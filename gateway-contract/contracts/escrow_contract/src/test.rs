@@ -616,6 +616,51 @@ fn test_deposit_invalid_amount() {
 }
 
 #[test]
+fn test_withdraw_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, token_admin, from, _) = setup_test(&env);
+
+    let owner = Address::generate(&env);
+    let initial_balance = 1_000i128;
+    let withdraw_amount = 400i128;
+
+    create_vault(&env, &contract_id, &from, &owner, &token, initial_balance);
+
+    let token_admin_client = StellarAssetClient::new(&env, &token);
+    token_admin_client.mint(&contract_id, &withdraw_amount);
+
+    client.withdraw(&from, &withdraw_amount);
+
+    env.as_contract(&contract_id, || {
+        let state: VaultState = env
+            .storage()
+            .persistent()
+            .get(&DataKey::VaultState(from.clone()))
+            .unwrap();
+        assert_eq!(state.balance, initial_balance - withdraw_amount);
+        assert!(state.is_active);
+    });
+
+    let token_client = TokenClient::new(&env, &token);
+    assert_eq!(token_client.balance(&owner), withdraw_amount);
+    assert_eq!(token_client.balance(&contract_id), 0);
+}
+
+#[test]
+fn test_withdraw_insufficient_balance() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, _) = setup_test(&env);
+
+    let owner = Address::generate(&env);
+    create_vault(&env, &contract_id, &from, &owner, &token, 100);
+
+    let result = client.try_withdraw(&from, &200);
+    assert_eq!(result, Err(Ok(EscrowError::InsufficientBalance)));
+}
+
+#[test]
 #[should_panic]
 fn test_deposit_not_owner() {
     let env = Env::default();
