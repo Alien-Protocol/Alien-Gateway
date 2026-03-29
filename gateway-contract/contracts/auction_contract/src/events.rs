@@ -91,16 +91,18 @@ pub fn emit_username_claimed(env: &Env, username_hash: &BytesN<32>, claimer: &Ad
     .publish(env);
 }
 
+#[allow(deprecated)]
 pub fn emit_bid_refunded(
     env: &Env,
     username_hash: &BytesN<32>,
     bidder: &Address,
     refund_amount: i128,
 ) {
-    BidRefundedEvent {
-        username_hash: username_hash.clone(),
-        bidder: bidder.clone(),
-        refund_amount,
-    }
-    .publish(env);
+    // Publish a canonical event with the BID_REFUNDED symbol and username_hash as topic,
+    // and (bidder, refund_amount) as the data tuple. Using explicit publish ensures the
+    // first topic is the event symbol which tests rely on.
+    env.events().publish(
+        (BID_REFUNDED, username_hash.clone()),
+        (bidder.clone(), refund_amount),
+    );
 }

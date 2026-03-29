@@ -77,6 +77,16 @@ impl Admin {
             .unwrap_or_else(|| panic_with_error!(&env, CoreError::NotFound));
         owner.require_auth();
 
+        if let Some(current) = env
+            .storage()
+            .instance()
+            .get::<_, soroban_sdk::BytesN<32>>(&storage::DataKey::SmtRoot)
+        {
+            if current == new_root {
+                panic_with_error!(&env, CoreError::RootUnchanged);
+            }
+        }
+
         smt_root::SmtRoot::update_root(&env, new_root);
     }
 }

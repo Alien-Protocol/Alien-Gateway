@@ -5,6 +5,9 @@ edition = "2021"
 publish = false
 
 
+[lints]
+workspace = true
+
 [dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
 core_contract = { path = "../contracts/core_contract" }

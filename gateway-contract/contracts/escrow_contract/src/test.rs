@@ -1,7 +1,5 @@
-#![cfg(test)]
-
 use crate::errors::EscrowError;
-use crate::types::{AutoPay, DataKey, ScheduledPayment, VaultConfig, VaultState};
+use crate::types::{AutoPay, DataKey, LegacyVault, ScheduledPayment, VaultConfig, VaultState};
 use crate::EscrowContract;
 use crate::EscrowContractClient;
 use soroban_sdk::testutils::{Address as _, Events as _, Ledger, MockAuth, MockAuthInvoke};
@@ -80,19 +78,126 @@ fn create_vault(
     });
 }
 
+fn create_legacy_vault(
+    env: &Env,
+    contract_id: &Address,
+    id: &BytesN<32>,
+    owner: &Address,
+    token: &Address,
+    balance: i128,
+) {
+    let legacy = LegacyVault {
+        owner: owner.clone(),
+        token: token.clone(),
+        created_at: 0,
+        balance,
+        is_active: true,
+    };
+    env.as_contract(contract_id, || {
+        env.storage()
+            .persistent()
+            .set(&DataKey::Vault(id.clone()), &legacy);
+    });
+}
+
 fn mint_token(env: &Env, token: &Address, token_admin: &Address, to: &Address, amount: i128) {
     let admin_client = StellarAssetClient::new(env, token);
     admin_client.mock_all_auths().mint(to, &amount);
     assert_eq!(admin_client.admin(), *token_admin);
 }
 
-fn _read_vault(env: &Env, contract_id: &Address, id: &BytesN<32>) -> VaultState {
-    env.as_contract(contract_id, || {
-        env.storage()
+#[test]
+fn test_legacy_vault_key_fallback_and_migration() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, token_admin, from, _to) = setup_test(&env);
+
+    let owner = Address::generate(&env);
+    create_legacy_vault(&env, &contract_id, &from, &owner, &token, 1000);
+
+    mint_token(&env, &token, &token_admin, &owner, 500);
+
+    // legacy storage should be readable through current getters.
+    assert_eq!(client.get_balance(&from), Some(1000));
+
+    // carry out a transition mutation (deposit) to verify the mutable split key is written.
+    client.deposit(&from, &200);
+    assert_eq!(client.get_balance(&from), Some(1200));
+
+    env.as_contract(&contract_id, || {
+        let config: Option<VaultConfig> = env
+            .storage()
             .persistent()
-            .get(&DataKey::Vault(id.clone()))
-            .unwrap()
-    })
+            .get(&DataKey::VaultConfig(from.clone()));
+        assert_eq!(config, None);
+
+        let state: VaultState = env
+            .storage()
+            .persistent()
+            .get(&DataKey::VaultState(from.clone()))
+            .unwrap();
+        assert_eq!(state.balance, 1200);
+        assert!(state.is_active);
+
+        let legacy: LegacyVault = env
+            .storage()
+            .persistent()
+            .get(&DataKey::Vault(from.clone()))
+            .unwrap();
+        assert_eq!(legacy.owner, owner);
+        assert_eq!(legacy.token, token);
+    });
+}
+
+// ─── get_scheduled_payment tests ─────────────────────────────────────────────
+
+/// Verifies that `get_scheduled_payment` returns `Some(ScheduledPayment)` with
+/// all correct fields immediately after `schedule_payment` has been called.
+#[test]
+fn test_get_scheduled_payment_returns_all_fields_after_schedule() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _, from, to) = setup_test(&env);
+
+    let initial_balance = 1_000i128;
+    let amount = 400i128;
+    let release_at = 2_000u64;
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        initial_balance,
+    );
+    env.ledger().set_timestamp(1_000);
+
+    let payment_id = client.schedule_payment(&from, &to, &amount, &release_at);
+
+    let result = client.get_scheduled_payment(&payment_id);
+    assert!(
+        result.is_some(),
+        "expected Some(ScheduledPayment) for a known payment_id"
+    );
+
+    let payment = result.unwrap();
+    assert_eq!(payment.from, from);
+    assert_eq!(payment.to, to);
+    assert_eq!(payment.amount, amount);
+    assert_eq!(payment.release_at, release_at);
+    assert!(!payment.executed, "payment should not be executed yet");
+}
+
+/// Verifies that `get_scheduled_payment` returns `None` for an ID that was
+/// never created, confirming it does not fabricate data.
+#[test]
+fn test_get_scheduled_payment_returns_none_for_unknown_id() {
+    let env = Env::default();
+    let (_, client, _, _, _, _) = setup_test(&env);
+
+    let result = client.get_scheduled_payment(&99_999u32);
+    assert!(result.is_none(), "expected None for an unknown payment_id");
 }
 
 #[test]
@@ -246,6 +351,32 @@ fn test_schedule_payment_returns_incrementing_ids() {
 }
 
 #[test]
+fn test_payment_counter_overflow_returns_error() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _, from, to) = setup_test(&env);
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1000,
+    );
+    env.ledger().set_timestamp(1000);
+
+    env.as_contract(&contract_id, || {
+        env.storage()
+            .instance()
+            .set(&DataKey::PaymentCounter, &u32::MAX);
+    });
+
+    let result = client.try_schedule_payment(&from, &to, &100, &2000);
+    assert_eq!(result, Err(Ok(EscrowError::PaymentCounterOverflow)));
+}
+
+#[test]
 fn test_execute_scheduled_success() {
     let env = Env::default();
     env.mock_all_auths();
@@ -387,11 +518,6 @@ fn test_create_vault_success() {
         assert_eq!(state.balance, 0);
         assert!(state.is_active);
     });
-
-    // Event emission is validated by the existing VaultCrtEvent publish call inside
-    // create_vault. In native test mode with env.invoke_contract cross-calls the
-    // outer contract's events are not surfaced via env.events().all(), so we rely
-    // on the storage assertions above to confirm correct execution.
 }
 
 #[test]
@@ -415,8 +541,6 @@ fn test_create_vault_already_exists() {
 #[should_panic]
 fn test_create_vault_not_owner() {
     let env = Env::default();
-    // No mock_all_auths: a caller who is NOT the registered owner cannot create
-    // the vault because owner.require_auth() will reject the transaction.
 
     let reg_id = env.register(MockRegistrationContract, ());
     let reg_client = MockRegistrationContractClient::new(&env, &reg_id);
@@ -429,15 +553,11 @@ fn test_create_vault_not_owner() {
         .address()
         .clone();
 
-    // set_owner has no require_auth, so it succeeds without auth mocking.
     reg_client.set_owner(&commitment, &owner);
 
     let escrow_id = env.register(EscrowContract, ());
     let client = EscrowContractClient::new(&env, &escrow_id);
 
-    // Write the registration address directly into instance storage so we
-    // skip initialize (which now requires admin.require_auth()) and keep this
-    // test entirely auth-free — proving create_vault itself enforces the check.
     env.as_contract(&escrow_id, || {
         env.storage()
             .instance()
@@ -489,11 +609,9 @@ fn test_execute_scheduled_not_found_panics() {
     env.mock_all_auths();
     let (_, client, _, _, _, _) = setup_test(&env);
 
-    // Attempt to execute an invalid payment_id
     let invalid_id = 999;
     let result = client.try_execute_scheduled(&invalid_id);
 
-    // Expecting PaymentNotFound error
     assert!(matches!(
         result,
         Err(Ok(err)) if err == Error::from_contract_error(EscrowError::PaymentNotFound as u32)
@@ -516,13 +634,11 @@ fn test_deposit_success() {
 
     create_vault(&env, &contract_id, &from, &owner, &token, initial_balance);
 
-    // Mint tokens to the owner so they can deposit
     let token_admin_client = StellarAssetClient::new(&env, &token);
     token_admin_client.mint(&owner, &deposit_amount);
 
     client.deposit(&from, &deposit_amount);
 
-    // Verify balance incremented
     env.as_contract(&contract_id, || {
         let state: VaultState = env
             .storage()
@@ -532,15 +648,9 @@ fn test_deposit_success() {
         assert_eq!(state.balance, initial_balance + deposit_amount);
     });
 
-    // Verify token transferred to contract
     let token_client = TokenClient::new(&env, &token);
     assert_eq!(token_client.balance(&contract_id), deposit_amount);
     assert_eq!(token_client.balance(&owner), 0);
-
-    // Note: Event emission is validated by the existing DepositEvent publish call inside
-    // deposit. In native test mode with env.invoke_contract cross-calls, the
-    // outer contract's events are not reliably surfaced via env.events().all(), so we rely
-    // on the storage and balance assertions above to confirm correct execution.
 }
 
 #[test]
@@ -548,8 +658,6 @@ fn test_deposit_non_existent_vault() {
     let env = Env::default();
     env.mock_all_auths();
     let (_contract_id, client, _token, _token_admin, from, _to) = setup_test(&env);
-
-    // No vault created for 'from'
 
     let result = client.try_deposit(&from, &100);
     assert!(matches!(
@@ -565,7 +673,6 @@ fn test_deposit_inactive_vault() {
     let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
 
     let owner = Address::generate(&env);
-    // Seed vault with is_active: false
     let config = VaultConfig {
         owner: owner.clone(),
         token: token.clone(),
@@ -600,14 +707,12 @@ fn test_deposit_invalid_amount() {
     let owner = Address::generate(&env);
     create_vault(&env, &contract_id, &from, &owner, &token, 100);
 
-    // Zero amount
     let result0 = client.try_deposit(&from, &0);
     assert!(matches!(
         result0,
         Err(Ok(err)) if err == Error::from_contract_error(EscrowError::InvalidAmount as u32)
     ));
 
-    // Negative amount
     let result_neg = client.try_deposit(&from, &-50);
     assert!(matches!(
         result_neg,
@@ -619,7 +724,7 @@ fn test_deposit_invalid_amount() {
 fn test_withdraw_success() {
     let env = Env::default();
     env.mock_all_auths();
-    let (contract_id, client, token, token_admin, from, _) = setup_test(&env);
+    let (contract_id, client, token, _token_admin, from, _) = setup_test(&env);
 
     let owner = Address::generate(&env);
     let initial_balance = 1_000i128;
@@ -657,21 +762,21 @@ fn test_withdraw_insufficient_balance() {
     create_vault(&env, &contract_id, &from, &owner, &token, 100);
 
     let result = client.try_withdraw(&from, &200);
-    assert_eq!(result, Err(Ok(EscrowError::InsufficientBalance)));
+    assert!(matches!(
+        result,
+        Err(Ok(err)) if err == Error::from_contract_error(EscrowError::InsufficientBalance as u32)
+    ));
 }
 
 #[test]
 #[should_panic]
 fn test_deposit_not_owner() {
     let env = Env::default();
-    // No mock_all_auths for the actual call
     let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
 
     let owner = Address::generate(&env);
     create_vault(&env, &contract_id, &from, &owner, &token, 100);
 
-    // Call deposit without owner's auth
-    // client.deposit(&from, &100) will panic because owner.require_auth() fails.
     client.deposit(&from, &100);
 }
 
@@ -726,7 +831,6 @@ fn test_get_balance_after_payment() {
     env.ledger().set_timestamp(1000);
     client.schedule_payment(&from, &to, &amount, &2000);
 
-    // Balance should reflect the reserved funds
     assert_eq!(client.get_balance(&from), Some(initial - amount));
 }
 
@@ -797,7 +901,7 @@ fn test_deposit_vault_not_found_panics() {
 // ─── withdraw tests ──────────────────────────────────────────────────────
 
 #[test]
-fn test_withdraw_success() {
+fn test_withdraw_success_with_token_transfer() {
     let env = Env::default();
     env.mock_all_auths();
     let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
@@ -808,11 +912,9 @@ fn test_withdraw_success() {
 
     create_vault(&env, &contract_id, &from, &owner, &token, initial_balance);
 
-    // Mint tokens to the contract to simulate prior deposits
     let token_admin_client = StellarAssetClient::new(&env, &token);
     token_admin_client.mint(&contract_id, &initial_balance);
 
-    // Verify initial state
     env.as_contract(&contract_id, || {
         let state: VaultState = env
             .storage()
@@ -822,10 +924,8 @@ fn test_withdraw_success() {
         assert_eq!(state.balance, initial_balance);
     });
 
-    // Perform withdrawal
     client.withdraw(&from, &withdraw_amount);
 
-    // Verify balance decremented
     env.as_contract(&contract_id, || {
         let state: VaultState = env
             .storage()
@@ -835,7 +935,6 @@ fn test_withdraw_success() {
         assert_eq!(state.balance, initial_balance - withdraw_amount);
     });
 
-    // Verify token transferred to owner
     let token_client = TokenClient::new(&env, &token);
     assert_eq!(token_client.balance(&owner), withdraw_amount);
     assert_eq!(
@@ -849,8 +948,6 @@ fn test_withdraw_non_existent_vault() {
     let env = Env::default();
     env.mock_all_auths();
     let (_contract_id, client, _token, _token_admin, from, _to) = setup_test(&env);
-
-    // No vault created for 'from'
 
     let result = client.try_withdraw(&from, &100);
     assert!(matches!(
@@ -866,7 +963,6 @@ fn test_withdraw_inactive_vault() {
     let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
 
     let owner = Address::generate(&env);
-    // Seed vault with is_active: false
     let config = VaultConfig {
         owner: owner.clone(),
         token: token.clone(),
@@ -901,14 +997,12 @@ fn test_withdraw_invalid_amount() {
     let owner = Address::generate(&env);
     create_vault(&env, &contract_id, &from, &owner, &token, 100);
 
-    // Zero amount
     let result0 = client.try_withdraw(&from, &0);
     assert!(matches!(
         result0,
         Err(Ok(err)) if err == Error::from_contract_error(EscrowError::InvalidAmount as u32)
     ));
 
-    // Negative amount
     let result_neg = client.try_withdraw(&from, &-50);
     assert!(matches!(
         result_neg,
@@ -926,14 +1020,12 @@ fn test_withdraw_overdraft() {
     let balance = 50i128;
     create_vault(&env, &contract_id, &from, &owner, &token, balance);
 
-    // Try to withdraw more than balance
     let result = client.try_withdraw(&from, &100);
     assert!(matches!(
         result,
         Err(Ok(err)) if err == Error::from_contract_error(EscrowError::InsufficientBalance as u32)
     ));
 
-    // Verify balance unchanged
     env.as_contract(&contract_id, || {
         let state: VaultState = env
             .storage()
@@ -948,24 +1040,16 @@ fn test_withdraw_overdraft() {
 #[should_panic]
 fn test_withdraw_not_owner() {
     let env = Env::default();
-    // No mock_all_auths for the actual call
     let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
 
     let owner = Address::generate(&env);
     create_vault(&env, &contract_id, &from, &owner, &token, 100);
 
-    // Call withdraw without owner's auth
-    // client.withdraw(&from, &50) will panic because owner.require_auth() fails.
     client.withdraw(&from, &50);
 }
 
 // ─── auto-pay storage isolation tests ────────────────────────────────────────
 
-/// Registers one auto-pay rule on each of two different vaults and confirms
-/// that neither rule is visible when looking up the other vault's commitment.
-/// This validates that the composite key (commitment, rule_id) fully isolates
-/// rules across vaults even when the global rule_id counter produces the same
-/// numeric ID for each.
 #[test]
 fn test_auto_pay_multiple_vaults_no_interference() {
     use crate::storage::{read_auto_pay, write_auto_pay};
@@ -995,25 +1079,20 @@ fn test_auto_pay_multiple_vaults_no_interference() {
         last_paid: 0,
     };
 
-    // Both rules share rule_id = 0 (simulating the global counter starting at 0
-    // for each vault). The composite key must keep them isolated.
     env.as_contract(&contract_id, || {
         write_auto_pay(&env, &vault_a, 0, &rule_a);
         write_auto_pay(&env, &vault_b, 0, &rule_b);
     });
 
     env.as_contract(&contract_id, || {
-        // Vault A's rule is retrievable under vault A's commitment.
         let stored_a = read_auto_pay(&env, &vault_a, 0).expect("rule for vault_a not found");
         assert_eq!(stored_a.amount, 100);
         assert_eq!(stored_a.interval, 86_400);
 
-        // Vault B's rule is retrievable under vault B's commitment.
         let stored_b = read_auto_pay(&env, &vault_b, 0).expect("rule for vault_b not found");
         assert_eq!(stored_b.amount, 200);
         assert_eq!(stored_b.interval, 43_200);
 
-        // Vault A's commitment does NOT return vault B's rule, and vice versa.
         assert_ne!(stored_a.amount, stored_b.amount);
         assert_ne!(stored_a.from, stored_b.from);
     });
@@ -1077,22 +1156,17 @@ fn test_cancel_vault_refunds_balance() {
     let initial_balance = 100i128;
     create_vault(&env, &contract_id, &from, &owner, &token, initial_balance);
 
-    // Mint tokens to contract so cancel_vault can transfer the refund
     let token_admin_client = StellarAssetClient::new(&env, &token);
     token_admin_client
         .mock_all_auths()
         .mint(&contract_id, &initial_balance);
 
-    // Verify initial state
     assert_eq!(client.get_balance(&from), Some(initial_balance));
 
-    // Cancel vault
     client.cancel_vault(&from);
 
-    // Verify balance is now 0
     assert_eq!(client.get_balance(&from), Some(0));
 
-    // Verify vault is inactive
     env.as_contract(&contract_id, || {
         let state: VaultState = env
             .storage()
@@ -1111,13 +1185,10 @@ fn test_cancel_vault_empty_balance() {
     let (contract_id, client, token, _, from, _) = setup_test(&env);
     let owner = Address::generate(&env);
 
-    // Create vault with 0 balance
     create_vault(&env, &contract_id, &from, &owner, &token, 0);
 
-    // Cancel vault should succeed without transfer
     client.cancel_vault(&from);
 
-    // Verify vault is inactive
     env.as_contract(&contract_id, || {
         let state: VaultState = env
             .storage()
@@ -1139,10 +1210,8 @@ fn test_cancel_vault_blocks_deposit() {
 
     create_vault(&env, &contract_id, &from, &owner, &token, 100);
 
-    // Cancel the vault
     client.cancel_vault(&from);
 
-    // Attempt to deposit should fail with VaultInactive and panic
     let amount = 50i128;
     client.deposit(&from, &amount);
 }
@@ -1164,12 +1233,10 @@ fn test_cancel_vault_blocks_schedule() {
     );
     create_vault(&env, &contract_id, &to, &Address::generate(&env), &token, 0);
 
-    // Cancel the vault
     client.cancel_vault(&from);
 
     env.ledger().set_timestamp(1000);
 
-    // Attempt to schedule payment should fail with VaultInactive and panic
     client.schedule_payment(&from, &to, &100, &2000);
 }
 
@@ -1183,7 +1250,6 @@ fn test_cancel_vault_non_owner_panics() {
 
     create_vault(&env, &contract_id, &from, &owner, &token, 100);
 
-    // Mock auth for non-owner
     client
         .mock_auths(&[MockAuth {
             address: &non_owner,
@@ -1195,6 +1261,63 @@ fn test_cancel_vault_non_owner_panics() {
             },
         }])
         .cancel_vault(&from);
+}
+
+// ─── get_auto_pay_count tests ─────────────────────────────────────────────────
+
+#[test]
+fn test_get_auto_pay_count_returns_zero_before_any_rules() {
+    let env = Env::default();
+    let (_, client, _, _, _, _) = setup_test(&env);
+
+    assert_eq!(client.get_auto_pay_count(), 0);
+}
+
+#[test]
+fn test_get_auto_pay_count_increments_after_setup() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _, from, to) = setup_test(&env);
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1000,
+    );
+
+    assert_eq!(client.get_auto_pay_count(), 0);
+
+    client.setup_auto_pay(&from, &to, &100, &86_400);
+
+    assert_eq!(client.get_auto_pay_count(), 1);
+}
+
+#[test]
+fn test_get_auto_pay_count_increments_with_multiple_rules() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _, from, to) = setup_test(&env);
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1000,
+    );
+
+    client.setup_auto_pay(&from, &to, &100, &86_400);
+    assert_eq!(client.get_auto_pay_count(), 1);
+
+    client.setup_auto_pay(&from, &to, &200, &43_200);
+    assert_eq!(client.get_auto_pay_count(), 2);
+
+    client.setup_auto_pay(&from, &to, &50, &3_600);
+    assert_eq!(client.get_auto_pay_count(), 3);
 }
 
 // ─── initialize tests ──────────────────────────────────────────────
@@ -1209,15 +1332,71 @@ fn test_initialize_twice_returns_already_initialized() {
     let client = EscrowContractClient::new(&env, &escrow_id);
     let admin = Address::generate(&env);
 
-    // First initialization should succeed
     client.initialize(&admin, &reg_id);
 
-    // Second initialization should fail with AlreadyInitialized
     let result = client.try_initialize(&admin, &reg_id);
     assert!(matches!(
         result,
         Err(Ok(err)) if err == Error::from_contract_error(EscrowError::AlreadyInitialized as u32)
     ));
+}
+
+// ─── get_auto_pay tests ──────────────────────────────────────────────
+
+#[test]
+fn test_get_auto_pay_returns_rule_after_setup() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    let amount = 250i128;
+    let interval = 86_400u64;
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+
+    let rule_id = client.setup_auto_pay(&from, &to, &amount, &interval);
+
+    let result = client.get_auto_pay(&from, &rule_id);
+    assert!(
+        result.is_some(),
+        "expected Some(AutoPay) after setup_auto_pay"
+    );
+
+    let rule = result.unwrap();
+    assert_eq!(rule.from, from);
+    assert_eq!(rule.to, to);
+    assert_eq!(rule.amount, amount);
+    assert_eq!(rule.interval, interval);
+    assert_eq!(rule.last_paid, 0);
+}
+
+#[test]
+fn test_get_auto_pay_returns_none_for_unknown_rule() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+
+    let result = client.get_auto_pay(&from, &999u32);
+    assert!(
+        result.is_none(),
+        "expected None for an unregistered rule_id"
+    );
 }
 
 // ─── auto-pay self-payment test ──────────────────────────────────────────────
@@ -1235,6 +1414,304 @@ fn test_auto_pay_self_payment_fails() {
     let result = client.try_setup_auto_pay(&from, &from, &100, &86400);
     assert!(matches!(
         result,
-        Err(Ok(err)) if err == Error::from_contract_error(EscrowError::SelfPaymentNotAllowed as u32)
+        Err(Ok(EscrowError::SelfPaymentNotAllowed))
     ));
+}
+
+/// Happy path: setup an auto-pay rule, cancel it, then confirm the rule is gone.
+///
+/// `get_auto_pay` must return `None` after a successful cancellation, proving
+/// the persistent storage entry was actually deleted rather than just marked.
+#[test]
+fn test_cancel_auto_pay_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    // Create a funded vault so setup_auto_pay can verify it exists.
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+
+    // Register an auto-pay rule.
+    let rule_id = client.setup_auto_pay(&from, &to, &100, &86_400);
+
+    // Confirm the rule is present before cancellation.
+    assert!(
+        client.get_auto_pay(&from, &rule_id).is_some(),
+        "rule must exist before cancel_auto_pay"
+    );
+
+    // Cancel the rule.
+    client.cancel_auto_pay(&from, &rule_id);
+
+    // After cancellation get_auto_pay must return None — the record is deleted.
+    assert!(
+        client.get_auto_pay(&from, &rule_id).is_none(),
+        "get_auto_pay must return None after cancel_auto_pay"
+    );
+}
+
+/// Core acceptance criterion: calling `trigger_auto_pay` after `cancel_auto_pay`
+/// must panic (return an error) with `AutoPayNotFound`.
+///
+/// This is the primary invariant for the cancel feature: a cancelled rule is
+/// indistinguishable from a rule that was never created.
+#[test]
+fn test_cancel_auto_pay_then_trigger_panics_with_not_found() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    let owner = Address::generate(&env);
+    create_vault(&env, &contract_id, &from, &owner, &token, 1_000);
+
+    // Mint tokens to the contract so trigger_auto_pay has funds to transfer.
+    let token_admin_client = StellarAssetClient::new(&env, &token);
+    token_admin_client.mint(&contract_id, &500);
+
+    // Register, then immediately cancel.
+    let rule_id = client.setup_auto_pay(&from, &to, &100, &1);
+    client.cancel_auto_pay(&from, &rule_id);
+
+    // Advance ledger so the interval check would pass if the rule still existed.
+    env.ledger().set_timestamp(10_000);
+
+    // trigger_auto_pay must fail with AutoPayNotFound — NOT IntervalNotElapsed
+    // or InsufficientBalance.  The rule lookup must be the first thing that fails.
+    let result = client.try_trigger_auto_pay(&from, &rule_id);
+    assert!(
+        matches!(
+            result,
+            Err(Ok(err)) if err == Error::from_contract_error(EscrowError::AutoPayNotFound as u32)
+        ),
+        "expected AutoPayNotFound after cancel, got: {:?}",
+        result
+    );
+}
+
+/// Security: a non-owner must not be able to cancel another user's auto-pay rule.
+///
+/// `cancel_auto_pay` calls `config.owner.require_auth()` which will panic when
+/// the presented auth is for a different address.
+#[test]
+#[should_panic]
+fn test_cancel_auto_pay_non_owner_panics() {
+    let env = Env::default();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    let owner = Address::generate(&env);
+    let non_owner = Address::generate(&env);
+
+    // Set up vault with a known owner.
+    create_vault(&env, &contract_id, &from, &owner, &token, 1_000);
+
+    // Register rule as the real owner (with full auth for setup only).
+    let rule_id = client
+        .mock_all_auths()
+        .setup_auto_pay(&from, &to, &100, &86_400);
+
+    // Attempt to cancel as non_owner — must panic because owner.require_auth() fails.
+    client
+        .mock_auths(&[MockAuth {
+            address: &non_owner,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "cancel_auto_pay",
+                args: (from.clone(), rule_id).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .cancel_auto_pay(&from, &rule_id);
+}
+
+/// Edge case: attempting to cancel a rule that does not exist must return
+/// `AutoPayNotFound`.  This covers two sub-cases:
+///   1. The rule was never registered (bad rule_id).
+///   2. The rule was already cancelled (double-cancel).
+#[test]
+fn test_cancel_auto_pay_nonexistent_rule_returns_not_found() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+
+    // rule_id 999 was never created.
+    let result = client.try_cancel_auto_pay(&from, &999u32);
+    assert!(
+        matches!(
+            result,
+            Err(Ok(err)) if err == Error::from_contract_error(EscrowError::AutoPayNotFound as u32)
+        ),
+        "expected AutoPayNotFound for a rule that was never registered, got: {:?}",
+        result
+    );
+}
+
+/// Edge case: double-cancel — cancelling a rule twice must return `AutoPayNotFound`
+/// on the second attempt rather than silently succeeding.
+#[test]
+fn test_cancel_auto_pay_double_cancel_returns_not_found() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+
+    let rule_id = client.setup_auto_pay(&from, &to, &100, &86_400);
+
+    // First cancel — must succeed.
+    client.cancel_auto_pay(&from, &rule_id);
+
+    // Second cancel — must fail because the rule no longer exists.
+    let result = client.try_cancel_auto_pay(&from, &rule_id);
+    assert!(
+        matches!(
+            result,
+            Err(Ok(err)) if err == Error::from_contract_error(EscrowError::AutoPayNotFound as u32)
+        ),
+        "expected AutoPayNotFound on double-cancel, got: {:?}",
+        result
+    );
+}
+
+/// Verify that cancelling one rule does not affect sibling rules on the same vault.
+///
+/// This guards against a storage bug where a cancel could accidentally delete the
+/// wrong record due to incorrect key construction.
+#[test]
+fn test_cancel_auto_pay_does_not_affect_sibling_rules() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        2_000,
+    );
+
+    // Register two rules on the same vault.
+    let rule_a = client.setup_auto_pay(&from, &to, &100, &86_400);
+    let rule_b = client.setup_auto_pay(&from, &to, &200, &43_200);
+
+    // Cancel only rule_a.
+    client.cancel_auto_pay(&from, &rule_a);
+
+    // rule_a must be gone.
+    assert!(
+        client.get_auto_pay(&from, &rule_a).is_none(),
+        "cancelled rule_a must return None"
+    );
+
+    // rule_b must be completely unaffected.
+    let surviving = client.get_auto_pay(&from, &rule_b);
+    assert!(
+        surviving.is_some(),
+        "rule_b must survive cancellation of rule_a"
+    );
+    assert_eq!(
+        surviving.unwrap().amount,
+        200,
+        "rule_b amount must be unchanged after rule_a cancel"
+    );
+}
+
+/// Verify that cancelling a rule on vault A does not affect a same-numbered rule
+/// on vault B.  This is a cross-vault variant of the sibling isolation test and
+/// directly validates that the composite key (from, rule_id) is correctly scoped.
+#[test]
+fn test_cancel_auto_pay_cross_vault_isolation() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    let vault_a = from.clone();
+    let vault_b = to.clone();
+
+    // Both vaults need config + state so setup_auto_pay succeeds for each.
+    create_vault(
+        &env,
+        &contract_id,
+        &vault_a,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+    create_vault(
+        &env,
+        &contract_id,
+        &vault_b,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+
+    // Each vault gets rule_id = 0 (first rule).
+    let rule_a = client.setup_auto_pay(&vault_a, &vault_b, &100, &86_400);
+    let rule_b = client.setup_auto_pay(&vault_b, &vault_a, &200, &43_200);
+
+    assert_eq!(rule_a, 0, "first rule on vault_a must have id 0");
+    // rule_b may be 1 depending on the global counter; what matters is that
+    // vault_b has its own rule regardless of the numeric ID.
+
+    // Cancel vault_a's rule.
+    client.cancel_auto_pay(&vault_a, &rule_a);
+
+    // vault_a rule gone.
+    assert!(
+        client.get_auto_pay(&vault_a, &rule_a).is_none(),
+        "vault_a rule must be deleted"
+    );
+
+    // vault_b rule untouched — use the returned rule_b id.
+    assert!(
+        client.get_auto_pay(&vault_b, &rule_b).is_some(),
+        "vault_b rule must survive cancellation on vault_a"
+    );
+}
+
+/// Verify that `cancel_auto_pay` fails with `VaultNotFound` when called for a
+/// commitment that has no vault at all.  This guards the auth path — without a
+/// vault there is no config, so we cannot resolve an owner.
+#[test]
+fn test_cancel_auto_pay_vault_not_found() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, _, _, _, _) = setup_test(&env);
+
+    let nonexistent_commitment = BytesN::from_array(&env, &[0xFFu8; 32]);
+
+    let result = client.try_cancel_auto_pay(&nonexistent_commitment, &0u32);
+    assert!(
+        matches!(
+            result,
+            Err(Ok(err)) if err == Error::from_contract_error(EscrowError::VaultNotFound as u32)
+        ),
+        "expected VaultNotFound for nonexistent vault, got: {:?}",
+        result
+    );
 }

@@ -27,10 +27,11 @@ pub enum AuctionKey {
     EndTime(u32),
     HighestBidder(u32),
     HighestBid(u32),
-    Status(u32),
-    Claimed(u32),
     OutbidAmount(u32, Address),
     BidRefunded(u32, Address),
+    Status(u32),
+    Claimed(u32),
+    UsernameHash(u32),
 }
 
 #[contracttype]

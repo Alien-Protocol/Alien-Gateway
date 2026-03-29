@@ -1,8 +1,12 @@
 #![no_std]
 
+/// Error types returned by the factory contract.
 mod errors;
+/// Event emission helpers.
 mod events;
+/// Persistent storage accessors.
 mod storage;
+/// Shared data structures.
 mod types;
 
 #[cfg(test)]
@@ -11,7 +15,7 @@ mod test;
 use soroban_sdk::{contract, contractimpl, panic_with_error, Address, BytesN, Env};
 
 use crate::errors::FactoryError;
-use crate::events::emit_username_deployed;
+use crate::events::{emit_ownership_transferred, emit_username_deployed};
 use crate::storage::{
     get_auction_contract, get_core_contract, get_username, has_username, set_auction_contract,
     set_core_contract, set_username,
@@ -91,6 +95,31 @@ impl FactoryContract {
             &record.owner,
             record.registered_at,
         );
+    }
+
+    /// Transfers the ownership of a username record.
+    ///
+    /// This function can only be called by the configured auction contract.
+    ///
+    /// # Arguments
+    ///
+    /// * `env` - The Soroban environment.
+    /// * `username_hash` - The 32-byte hash identifying the unique username.
+    /// * `new_owner` - The address that will be the new owner.
+    pub fn transfer_username(env: Env, username_hash: BytesN<32>, new_owner: Address) {
+        let auction_contract = match get_auction_contract(&env) {
+            Some(address) => address,
+            None => panic_with_error!(&env, FactoryError::Unauthorized),
+        };
+        auction_contract.require_auth();
+
+        let mut record = get_username(&env, &username_hash).expect("Username not deployed");
+
+        let old_owner = record.owner.clone();
+        record.owner = new_owner.clone();
+
+        set_username(&env, &username_hash, &record);
+        emit_ownership_transferred(&env, &username_hash, &old_owner, &new_owner);
     }
 
     /// Retrieves the record for a given username hash.

@@ -11,38 +11,30 @@ env:
 
 jobs:
   ci:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
 
     defaults:
       run:
-        working-directory: gateway-contract 
-
+        working-directory: gateway-contract
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install Rust
-      run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-        source $HOME/.cargo/env
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-unknown-unknown
 
-    - name: Install Rust target for Soroban
-      run: |
-        source $HOME/.cargo/env
-        rustup target add wasm32v1-none
-
-    - name: Install Stellar CLI with Homebrew
-      run: |
-        brew update
-        brew install stellar-cli
-        stellar --version
-
-    - name: Build Soroban contract
-      run: |
-        source $HOME/.cargo/env
-        stellar contract build --verbose
+    - name: Build Soroban contracts
+      run: >
+        cargo build
+        -p auction_contract
+        -p core_contract
+        -p escrow_contract
+        -p factory_contract
+        --target wasm32-unknown-unknown
+        --release
+        --verbose
 
     - name: Run Cargo tests
-      run: |
-        source $HOME/.cargo/env
-        cargo test --verbose
+      run: cargo test --workspace --all-features --verbose

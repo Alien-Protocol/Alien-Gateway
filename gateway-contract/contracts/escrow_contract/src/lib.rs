@@ -14,9 +14,10 @@ mod test;
 use crate::errors::EscrowError;
 use crate::events::Events;
 use crate::storage::{
-    increment_auto_pay_id, increment_payment_id, read_auto_pay, read_registration_contract,
-    read_vault_config, read_vault_state, write_auto_pay, write_registration_contract,
-    write_scheduled_payment, write_vault_config, write_vault_state,
+    delete_auto_pay, increment_auto_pay_id, increment_payment_id, read_auto_pay,
+    read_auto_pay_count, read_registration_contract, read_vault_config, read_vault_state,
+    write_auto_pay, write_registration_contract, write_scheduled_payment, write_vault_config,
+    write_vault_state,
 };
 use crate::types::{AutoPay, DataKey, ScheduledPayment, VaultConfig, VaultState};
 use soroban_sdk::{
@@ -390,37 +391,6 @@ impl EscrowContract {
         Events::vault_cancel(&env, commitment, refunded_amount);
     }
 
-    /// Withdraws tokens from an active vault back to the owner.
-    ///
-    /// The vault owner must authorize this call. The vault remains active and
-    /// its balance is reduced by the withdrawn amount.
-    pub fn withdraw(env: Env, commitment: BytesN<32>, amount: i128) {
-        if amount <= 0 {
-            panic_with_error!(&env, EscrowError::InvalidAmount);
-        }
-
-        let config = read_vault_config(&env, &commitment)
-            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
-        let mut state = read_vault_state(&env, &commitment)
-            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
-
-        config.owner.require_auth();
-
-        if !state.is_active {
-            panic_with_error!(&env, EscrowError::VaultInactive);
-        }
-
-        if state.balance < amount {
-            panic_with_error!(&env, EscrowError::InsufficientBalance);
-        }
-
-        state.balance -= amount;
-        write_vault_state(&env, &commitment, &state);
-
-        let token_client = token::Client::new(&env, &config.token);
-        token_client.transfer(&env.current_contract_address(), &config.owner, &amount);
-    }
-
     /// Registers a recurring payment rule.
     ///
     /// Once registered, calling `trigger_auto_pay` will send `amount` tokens
@@ -485,6 +455,42 @@ impl EscrowContract {
         Events::auto_set(&env, rule_id, from, to, amount, interval);
 
         Ok(rule_id)
+    }
+
+    /// Cancels an existing auto-pay rule, permanently deleting it from storage.
+    ///
+    /// Once cancelled, any subsequent call to `trigger_auto_pay` with the same
+    /// `(from, rule_id)` pair will panic with `AutoPayNotFound`.
+    ///
+    /// Cancellation does **not** refund reserved tokens; it only stops future
+    /// automatic transfers. Vault funds remain accessible via `withdraw`.
+    ///
+    /// ### Arguments
+    /// - `from`:    The commitment ID of the source vault that owns the rule.
+    /// - `rule_id`: The unique identifier of the auto-pay rule to cancel.
+    ///
+    /// ### Errors
+    /// - `VaultNotFound`:   If the source vault does not exist.
+    /// - `AutoPayNotFound`: If no auto-pay rule exists for `(from, rule_id)`.
+    ///
+    /// ### Authentication
+    /// Only the registered owner of the `from` vault may cancel its rules.
+    pub fn cancel_auto_pay(env: Env, from: BytesN<32>, rule_id: u32) {
+        // 1. Resolve and authenticate the vault owner.
+        let config = read_vault_config(&env, &from)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+        config.owner.require_auth();
+
+        // 2. Confirm the rule exists before deleting it.
+        if read_auto_pay(&env, &from, rule_id).is_none() {
+            panic_with_error!(&env, EscrowError::AutoPayNotFound);
+        }
+
+        // 3. Delete the record from persistent storage.
+        delete_auto_pay(&env, &from, rule_id);
+
+        // 4. Emit cancellation event so off-chain observers (indexers, bots) can react.
+        Events::auto_cancel(&env, rule_id, from);
     }
 
     /// Executes one cycle of a recurring auto-pay rule if enough time has passed.
@@ -573,24 +579,54 @@ impl EscrowContract {
         read_vault_state(&env, &commitment).map(|state| state.balance)
     }
 
-    /// Returns the auto-pay rule for a given source vault and rule ID.
+    /// Returns the total number of auto-pay rules that have been created.
     ///
-    /// This is a read-only getter with no side effects and no authentication
-    /// requirement. It performs a single O(1) persistent-storage lookup using
-    /// the composite key `(from, rule_id)`.
-    ///
-    /// ### Arguments
-    /// - `from`: The `BytesN<32>` commitment ID of the source vault that owns the rule.
-    /// - `rule_id`: The unique identifier of the auto-pay rule.
+    /// This equals the next available rule ID, so rule IDs range from `0` to
+    /// `get_auto_pay_count() - 1`. Callers can use this to enumerate all rule
+    /// IDs without guessing.
     ///
     /// ### Returns
-    /// - `Some(AutoPay)` if the rule exists (i.e. after `setup_auto_pay`).
-    /// - `None` if the rule does not exist or has been cancelled.
+    /// - `0` if no auto-pay rules have ever been registered.
+    /// - The count of rules created so far otherwise.
+    pub fn get_auto_pay_count(env: Env) -> u32 {
+        read_auto_pay_count(&env)
+    }
+
+    /// Returns an auto-pay rule by vault commitment and rule ID, or `None` if it does not exist.
+    ///
+    /// This is a read-only getter with no side effects and no authentication
+    /// requirement. It performs a single O(1) persistent-storage lookup.
+    ///
+    /// ### Arguments
+    /// - `from`: The `BytesN<32>` commitment of the source vault that owns the rule.
+    /// - `rule_id`: The `u32` ID returned by [`EscrowContract::setup_auto_pay`].
+    ///
+    /// ### Returns
+    /// - `None` if no rule exists for `(from, rule_id)`.
+    /// - `Some(AutoPay)` with all rule fields otherwise.
     pub fn get_auto_pay(env: Env, from: BytesN<32>, rule_id: u32) -> Option<AutoPay> {
         read_auto_pay(&env, &from, rule_id)
     }
+
+    /// Returns a scheduled payment by its ID, or `None` if it does not exist.
+    ///
+    /// This is a read-only getter with no side effects and no authentication
+    /// requirement. It performs a single O(1) persistent-storage lookup.
+    ///
+    /// ### Arguments
+    /// - `payment_id`: The `u32` ID returned by [`EscrowContract::schedule_payment`].
+    ///
+    /// ### Returns
+    /// - `None` if no payment exists for `payment_id`.
+    /// - `Some(ScheduledPayment)` with all fields (from, to, token, amount, release_at, executed).
+    pub fn get_scheduled_payment(env: Env, payment_id: u32) -> Option<ScheduledPayment> {
+        let key = DataKey::ScheduledPayment(payment_id);
+        env.storage().persistent().get(&key)
+    }
 }
 
+/// Returns the owner address of the vault identified by `commitment`, panicking
+/// with `VaultNotFound` if no vault config exists.
 fn resolve(env: &Env, commitment: &BytesN<32>) -> Address {
     let config = read_vault_config(env, commitment)
         .unwrap_or_else(|| panic_with_error!(env, EscrowError::VaultNotFound));
