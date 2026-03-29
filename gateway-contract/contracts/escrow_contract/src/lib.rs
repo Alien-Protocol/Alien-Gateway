@@ -12,7 +12,6 @@ pub mod types;
 mod test;
 use crate::errors::EscrowError;
 use crate::events::Events;
-use crate::storage::delete_auto_pay;
 use crate::storage::{
     delete_auto_pay, increment_auto_pay_id, increment_payment_id, read_auto_pay,
     read_auto_pay_count, read_registration_contract, read_vault_config, read_vault_state,

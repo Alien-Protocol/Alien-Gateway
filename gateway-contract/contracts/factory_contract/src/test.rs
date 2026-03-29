@@ -73,11 +73,8 @@ fn deploy_username_stores_record_and_emits_event() {
     assert_eq!(event_contract, factory_id);
     assert_eq!(topics.len(), 1);
 
-    let event_name = Symbol::try_from_val(
-        &env,
-        &topics.get(0).expect("expected event name topic"),
-    )
-    .expect("event name should deserialize");
+    let event_name = Symbol::try_from_val(&env, &topics.get(0).expect("expected event name topic"))
+        .expect("event name should deserialize");
     let (event_hash, event_owner, event_registered_at) =
         <(BytesN<32>, Address, u64)>::try_from_val(&env, &data)
             .expect("event payload should deserialize");

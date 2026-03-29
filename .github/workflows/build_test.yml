@@ -28,7 +28,7 @@ jobs:
     - name: Build Soroban contracts
       run: >
         cargo build
-        -p auction_contract
+        -p gateway-auction
         -p core_contract
         -p escrow_contract
         -p factory_contract

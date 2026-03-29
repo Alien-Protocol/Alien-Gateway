@@ -250,7 +250,9 @@ impl AddressManager {
                         .persistent()
                         .remove(&storage::DataKey::StellarAddress(username_hash.clone()));
                 } else {
-                    let last = updated.get(updated.len() - 1).unwrap();
+                    let last = updated
+                        .get(updated.len() - 1)
+                        .expect("updated vec is not empty");
                     env.storage().persistent().set(
                         &storage::DataKey::StellarAddress(username_hash.clone()),
                         &last,
@@ -260,10 +262,8 @@ impl AddressManager {
         }
 
         #[allow(deprecated)]
-        env.events().publish(
-            (stellar_rem_event(&env),),
-            (username_hash, stellar_address),
-        );
+        env.events()
+            .publish((stellar_rem_event(&env),), (username_hash, stellar_address));
     }
 
     pub fn get_stellar_addresses(env: Env, username_hash: BytesN<32>) -> Vec<Address> {
