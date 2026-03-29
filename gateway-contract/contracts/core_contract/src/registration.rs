@@ -1,6 +1,6 @@
 use crate::errors::CoreError;
 use crate::events::REGISTER_EVENT;
-use crate::storage::{PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD};
+use crate::storage::{self, PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD};
 use soroban_sdk::{contracttype, panic_with_error, Address, BytesN, Env};
 
 // Storage Keys
@@ -47,6 +47,9 @@ impl Registration {
             PERSISTENT_BUMP_AMOUNT,
         );
 
+        // Store registration timestamp
+        storage::set_created_at(&env, &commitment, env.ledger().timestamp());
+
         // Emit registration event
         #[allow(deprecated)]
         env.events()
@@ -68,5 +71,21 @@ impl Registration {
     pub fn get_owner(env: Env, commitment: BytesN<32>) -> Option<Address> {
         let key = DataKey::Commitment(commitment);
         env.storage().persistent().get(&key)
+    }
+
+    /// Retrieves the ledger timestamp at which a commitment was first registered.
+    ///
+    /// Returns the Unix timestamp (seconds) recorded at registration time, or None if the
+    /// commitment has never been registered.
+    ///
+    /// ### Arguments
+    /// - `env`: The Soroban contract environment.
+    /// - `commitment`: The 32-byte username commitment to look up.
+    ///
+    /// ### Returns
+    /// - `Some(u64)` with the registration ledger timestamp.
+    /// - `None` if the commitment is not found.
+    pub fn get_created_at(env: Env, commitment: BytesN<32>) -> Option<u64> {
+        storage::get_created_at(&env, &commitment)
     }
 }

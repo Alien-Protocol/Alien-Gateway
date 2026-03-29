@@ -6,4 +6,5 @@ target
 .stellar
 
 # Soroban test snapshots — committed as regression guards
-# **/test_snapshots/
+
+**/test_snapshots

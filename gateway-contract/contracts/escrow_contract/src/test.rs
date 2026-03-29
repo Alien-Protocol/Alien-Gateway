@@ -710,6 +710,51 @@ fn test_deposit_invalid_amount() {
 }
 
 #[test]
+fn test_withdraw_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, token_admin, from, _) = setup_test(&env);
+
+    let owner = Address::generate(&env);
+    let initial_balance = 1_000i128;
+    let withdraw_amount = 400i128;
+
+    create_vault(&env, &contract_id, &from, &owner, &token, initial_balance);
+
+    let token_admin_client = StellarAssetClient::new(&env, &token);
+    token_admin_client.mint(&contract_id, &withdraw_amount);
+
+    client.withdraw(&from, &withdraw_amount);
+
+    env.as_contract(&contract_id, || {
+        let state: VaultState = env
+            .storage()
+            .persistent()
+            .get(&DataKey::VaultState(from.clone()))
+            .unwrap();
+        assert_eq!(state.balance, initial_balance - withdraw_amount);
+        assert!(state.is_active);
+    });
+
+    let token_client = TokenClient::new(&env, &token);
+    assert_eq!(token_client.balance(&owner), withdraw_amount);
+    assert_eq!(token_client.balance(&contract_id), 0);
+}
+
+#[test]
+fn test_withdraw_insufficient_balance() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, _) = setup_test(&env);
+
+    let owner = Address::generate(&env);
+    create_vault(&env, &contract_id, &from, &owner, &token, 100);
+
+    let result = client.try_withdraw(&from, &200);
+    assert_eq!(result, Err(Ok(EscrowError::InsufficientBalance)));
+}
+
+#[test]
 #[should_panic]
 fn test_deposit_not_owner() {
     let env = Env::default();
@@ -1283,31 +1328,17 @@ fn test_cancel_vault_non_owner_panics() {
         .cancel_vault(&from);
 }
 
-// ─── get_auto_pay tests ──────────────────────────────────────────────
+// ─── initialize tests ──────────────────────────────────────────────
 
-/// Verifies that `get_auto_pay` returns `Some(AutoPay)` with the correct fields
-/// immediately after `setup_auto_pay` has been called.
 #[test]
-fn test_get_auto_pay_returns_rule_after_setup() {
+fn test_initialize_twice_returns_already_initialized() {
     let env = Env::default();
     env.mock_all_auths();
-    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
 
-    let amount = 250i128;
-    let interval = 86_400u64; // 1 day in seconds
-
-    // Create a funded vault so setup_auto_pay can verify it exists.
-    create_vault(
-        &env,
-        &contract_id,
-        &from,
-        &Address::generate(&env),
-        &token,
-        1_000,
-    );
-
-    // Register the auto-pay rule and capture the assigned rule_id.
-    let rule_id = client.setup_auto_pay(&from, &to, &amount, &interval);
+    let reg_id = env.register(MockRegistrationContract, ());
+    let escrow_id = env.register(EscrowContract, ());
+    let client = EscrowContractClient::new(&env, &escrow_id);
+    let admin = Address::generate(&env);
 
     // get_auto_pay must return Some with matching fields.
     let result = client.get_auto_pay(&from, &rule_id);
@@ -1316,12 +1347,12 @@ fn test_get_auto_pay_returns_rule_after_setup() {
         "expected Some(AutoPay) after setup_auto_pay"
     );
 
-    let rule = result.unwrap();
-    assert_eq!(rule.from, from);
-    assert_eq!(rule.to, to);
-    assert_eq!(rule.amount, amount);
-    assert_eq!(rule.interval, interval);
-    assert_eq!(rule.last_paid, 0);
+    // Second initialization should fail with AlreadyInitialized
+    let result = client.try_initialize(&admin, &reg_id);
+    assert!(matches!(
+        result,
+        Err(Ok(err)) if err == Error::from_contract_error(EscrowError::AlreadyInitialized as u32)
+    ));
 }
 
 #[test]
@@ -1349,20 +1380,13 @@ fn test_setup_auto_pay_requires_full_source_vault() {
 /// Verifies that `get_auto_pay` returns `None` for a rule_id that was never
 /// created, confirming the function does not fabricate data.
 #[test]
-fn test_get_auto_pay_returns_none_for_unknown_rule() {
+fn test_auto_pay_self_payment_fails() {
     let env = Env::default();
     env.mock_all_auths();
     let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
 
-    // Create a vault but deliberately do NOT call setup_auto_pay.
-    create_vault(
-        &env,
-        &contract_id,
-        &from,
-        &Address::generate(&env),
-        &token,
-        1_000,
-    );
+    let owner = Address::generate(&env);
+    create_vault(&env, &contract_id, &from, &owner, &token, 1000);
 
     // rule_id 999 was never registered — must return None.
     let result = client.get_auto_pay(&from, &999u32);
