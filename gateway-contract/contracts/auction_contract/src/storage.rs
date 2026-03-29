@@ -249,3 +249,14 @@ pub fn auction_set_bid_refunded(env: &Env, id: u32, bidder: &Address) {
         PERSISTENT_BUMP_AMOUNT,
     );
 }
+
+/// Refunds the previous highest bidder when they are outbid.
+/// Records the outbid amount for later withdrawal and emits a refund event.
+pub fn refund_previous_bidder(env: &Env, id: u32) {
+    if let Some(prev_bidder) = auction_get_highest_bidder(env, id) {
+        let highest_bid = auction_get_highest_bid(env, id);
+        auction_set_outbid_amount(env, id, &prev_bidder, highest_bid);
+        let username_hash = auction_get_username_hash(env, id);
+        crate::events::emit_bid_refunded(env, &username_hash, &prev_bidder, highest_bid);
+    }
+}

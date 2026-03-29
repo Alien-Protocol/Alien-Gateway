@@ -60,11 +60,7 @@ pub fn place_bid(env: &Env, id: u32, bidder: Address, amount: i128) {
     let asset = storage::auction_get_asset(env, id);
     let token = soroban_sdk::token::Client::new(env, &asset);
     token.transfer(&bidder, env.current_contract_address(), &amount);
-    if let Some(prev_bidder) = storage::auction_get_highest_bidder(env, id) {
-        storage::auction_set_outbid_amount(env, id, &prev_bidder, highest_bid);
-        let username_hash = storage::auction_get_username_hash(env, id);
-        events::emit_bid_refunded(env, &username_hash, &prev_bidder, highest_bid);
-    }
+    storage::refund_previous_bidder(env, id);
     storage::auction_set_highest_bidder(env, id, &bidder);
     storage::auction_set_highest_bid(env, id, amount);
 
