@@ -456,6 +456,42 @@ impl EscrowContract {
         Ok(rule_id)
     }
 
+    /// Cancels an existing auto-pay rule, permanently deleting it from storage.
+    ///
+    /// Once cancelled, any subsequent call to `trigger_auto_pay` with the same
+    /// `(from, rule_id)` pair will panic with `AutoPayNotFound`.
+    ///
+    /// Cancellation does **not** refund reserved tokens; it only stops future
+    /// automatic transfers. Vault funds remain accessible via `withdraw`.
+    ///
+    /// ### Arguments
+    /// - `from`:    The commitment ID of the source vault that owns the rule.
+    /// - `rule_id`: The unique identifier of the auto-pay rule to cancel.
+    ///
+    /// ### Errors
+    /// - `VaultNotFound`:   If the source vault does not exist.
+    /// - `AutoPayNotFound`: If no auto-pay rule exists for `(from, rule_id)`.
+    ///
+    /// ### Authentication
+    /// Only the registered owner of the `from` vault may cancel its rules.
+    pub fn cancel_auto_pay(env: Env, from: BytesN<32>, rule_id: u32) {
+        // 1. Resolve and authenticate the vault owner.
+        let config = read_vault_config(&env, &from)
+            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+        config.owner.require_auth();
+
+        // 2. Confirm the rule exists before deleting it.
+        if read_auto_pay(&env, &from, rule_id).is_none() {
+            panic_with_error!(&env, EscrowError::AutoPayNotFound);
+        }
+
+        // 3. Delete the record from persistent storage.
+        delete_auto_pay(&env, &from, rule_id);
+
+        // 4. Emit cancellation event so off-chain observers (indexers, bots) can react.
+        Events::auto_cancel(&env, rule_id, from);
+    }
+
     /// Executes one cycle of a recurring auto-pay rule if enough time has passed.
     ///
     /// This function is trustless and can be called by anyone (bots, keeper scripts, SDK).

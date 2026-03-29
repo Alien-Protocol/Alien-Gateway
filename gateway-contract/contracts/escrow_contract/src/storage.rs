@@ -157,3 +157,9 @@ pub fn read_auto_pay(env: &Env, commitment: &BytesN<32>, rule_id: u32) -> Option
         .persistent()
         .get(&DataKey::AutoPay(commitment.clone(), rule_id as u64))
 }
+
+/// Deletes an auto-pay rule from persistent storage by vault commitment and rule ID.
+pub fn delete_auto_pay(env: &Env, from: &BytesN<32>, rule_id: u32) {
+    let key = DataKey::AutoPay(from.clone(), rule_id as u64);
+    env.storage().persistent().remove(&key);
+}

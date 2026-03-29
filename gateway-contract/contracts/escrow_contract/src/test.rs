@@ -1406,3 +1406,299 @@ fn test_auto_pay_self_payment_fails() {
         Err(Ok(err)) if err == Error::from_contract_error(EscrowError::SelfPaymentNotAllowed as u32)
     ));
 }
+
+/// Happy path: setup an auto-pay rule, cancel it, then confirm the rule is gone.
+///
+/// `get_auto_pay` must return `None` after a successful cancellation, proving
+/// the persistent storage entry was actually deleted rather than just marked.
+#[test]
+fn test_cancel_auto_pay_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    // Create a funded vault so setup_auto_pay can verify it exists.
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+
+    // Register an auto-pay rule.
+    let rule_id = client.setup_auto_pay(&from, &to, &100, &86_400);
+
+    // Confirm the rule is present before cancellation.
+    assert!(
+        client.get_auto_pay(&from, &rule_id).is_some(),
+        "rule must exist before cancel_auto_pay"
+    );
+
+    // Cancel the rule.
+    client.cancel_auto_pay(&from, &rule_id);
+
+    // After cancellation get_auto_pay must return None — the record is deleted.
+    assert!(
+        client.get_auto_pay(&from, &rule_id).is_none(),
+        "get_auto_pay must return None after cancel_auto_pay"
+    );
+}
+
+/// Core acceptance criterion: calling `trigger_auto_pay` after `cancel_auto_pay`
+/// must panic (return an error) with `AutoPayNotFound`.
+///
+/// This is the primary invariant for the cancel feature: a cancelled rule is
+/// indistinguishable from a rule that was never created.
+#[test]
+fn test_cancel_auto_pay_then_trigger_panics_with_not_found() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, token_admin, from, to) = setup_test(&env);
+
+    let owner = Address::generate(&env);
+    create_vault(&env, &contract_id, &from, &owner, &token, 1_000);
+
+    // Mint tokens to the contract so trigger_auto_pay has funds to transfer.
+    let token_admin_client = StellarAssetClient::new(&env, &token);
+    token_admin_client.mint(&contract_id, &500);
+
+    // Register, then immediately cancel.
+    let rule_id = client.setup_auto_pay(&from, &to, &100, &1);
+    client.cancel_auto_pay(&from, &rule_id);
+
+    // Advance ledger so the interval check would pass if the rule still existed.
+    env.ledger().set_timestamp(10_000);
+
+    // trigger_auto_pay must fail with AutoPayNotFound — NOT IntervalNotElapsed
+    // or InsufficientBalance.  The rule lookup must be the first thing that fails.
+    let result = client.try_trigger_auto_pay(&from, &rule_id);
+    assert!(
+        matches!(
+            result,
+            Err(Ok(err)) if err == Error::from_contract_error(EscrowError::AutoPayNotFound as u32)
+        ),
+        "expected AutoPayNotFound after cancel, got: {:?}",
+        result
+    );
+}
+
+/// Security: a non-owner must not be able to cancel another user's auto-pay rule.
+///
+/// `cancel_auto_pay` calls `config.owner.require_auth()` which will panic when
+/// the presented auth is for a different address.
+#[test]
+#[should_panic]
+fn test_cancel_auto_pay_non_owner_panics() {
+    let env = Env::default();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    let owner = Address::generate(&env);
+    let non_owner = Address::generate(&env);
+
+    // Set up vault with a known owner.
+    create_vault(&env, &contract_id, &from, &owner, &token, 1_000);
+
+    // Register rule as the real owner (with full auth for setup only).
+    let rule_id = client.mock_all_auths().setup_auto_pay(&from, &to, &100, &86_400);
+
+    // Attempt to cancel as non_owner — must panic because owner.require_auth() fails.
+    client
+        .mock_auths(&[MockAuth {
+            address: &non_owner,
+            invoke: &MockAuthInvoke {
+                contract: &contract_id,
+                fn_name: "cancel_auto_pay",
+                args: (from.clone(), rule_id).into_val(&env),
+                sub_invokes: &[],
+            },
+        }])
+        .cancel_auto_pay(&from, &rule_id);
+}
+
+/// Edge case: attempting to cancel a rule that does not exist must return
+/// `AutoPayNotFound`.  This covers two sub-cases:
+///   1. The rule was never registered (bad rule_id).
+///   2. The rule was already cancelled (double-cancel).
+#[test]
+fn test_cancel_auto_pay_nonexistent_rule_returns_not_found() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+
+    // rule_id 999 was never created.
+    let result = client.try_cancel_auto_pay(&from, &999u32);
+    assert!(
+        matches!(
+            result,
+            Err(Ok(err)) if err == Error::from_contract_error(EscrowError::AutoPayNotFound as u32)
+        ),
+        "expected AutoPayNotFound for a rule that was never registered, got: {:?}",
+        result
+    );
+}
+
+/// Edge case: double-cancel — cancelling a rule twice must return `AutoPayNotFound`
+/// on the second attempt rather than silently succeeding.
+#[test]
+fn test_cancel_auto_pay_double_cancel_returns_not_found() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+
+    let rule_id = client.setup_auto_pay(&from, &to, &100, &86_400);
+
+    // First cancel — must succeed.
+    client.cancel_auto_pay(&from, &rule_id);
+
+    // Second cancel — must fail because the rule no longer exists.
+    let result = client.try_cancel_auto_pay(&from, &rule_id);
+    assert!(
+        matches!(
+            result,
+            Err(Ok(err)) if err == Error::from_contract_error(EscrowError::AutoPayNotFound as u32)
+        ),
+        "expected AutoPayNotFound on double-cancel, got: {:?}",
+        result
+    );
+}
+
+/// Verify that cancelling one rule does not affect sibling rules on the same vault.
+///
+/// This guards against a storage bug where a cancel could accidentally delete the
+/// wrong record due to incorrect key construction.
+#[test]
+fn test_cancel_auto_pay_does_not_affect_sibling_rules() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        2_000,
+    );
+
+    // Register two rules on the same vault.
+    let rule_a = client.setup_auto_pay(&from, &to, &100, &86_400);
+    let rule_b = client.setup_auto_pay(&from, &to, &200, &43_200);
+
+    // Cancel only rule_a.
+    client.cancel_auto_pay(&from, &rule_a);
+
+    // rule_a must be gone.
+    assert!(
+        client.get_auto_pay(&from, &rule_a).is_none(),
+        "cancelled rule_a must return None"
+    );
+
+    // rule_b must be completely unaffected.
+    let surviving = client.get_auto_pay(&from, &rule_b);
+    assert!(
+        surviving.is_some(),
+        "rule_b must survive cancellation of rule_a"
+    );
+    assert_eq!(
+        surviving.unwrap().amount,
+        200,
+        "rule_b amount must be unchanged after rule_a cancel"
+    );
+}
+
+/// Verify that cancelling a rule on vault A does not affect a same-numbered rule
+/// on vault B.  This is a cross-vault variant of the sibling isolation test and
+/// directly validates that the composite key (from, rule_id) is correctly scoped.
+#[test]
+fn test_cancel_auto_pay_cross_vault_isolation() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    let vault_a = from.clone();
+    let vault_b = to.clone();
+
+    // Both vaults need config + state so setup_auto_pay succeeds for each.
+    create_vault(
+        &env,
+        &contract_id,
+        &vault_a,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+    create_vault(
+        &env,
+        &contract_id,
+        &vault_b,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+
+    // Each vault gets rule_id = 0 (first rule).
+    let rule_a = client.setup_auto_pay(&vault_a, &vault_b, &100, &86_400);
+    let rule_b = client.setup_auto_pay(&vault_b, &vault_a, &200, &43_200);
+
+    assert_eq!(rule_a, 0, "first rule on vault_a must have id 0");
+    // rule_b may be 1 depending on the global counter; what matters is that
+    // vault_b has its own rule regardless of the numeric ID.
+
+    // Cancel vault_a's rule.
+    client.cancel_auto_pay(&vault_a, &rule_a);
+
+    // vault_a rule gone.
+    assert!(
+        client.get_auto_pay(&vault_a, &rule_a).is_none(),
+        "vault_a rule must be deleted"
+    );
+
+    // vault_b rule untouched — use the returned rule_b id.
+    assert!(
+        client.get_auto_pay(&vault_b, &rule_b).is_some(),
+        "vault_b rule must survive cancellation on vault_a"
+    );
+}
+
+/// Verify that `cancel_auto_pay` fails with `VaultNotFound` when called for a
+/// commitment that has no vault at all.  This guards the auth path — without a
+/// vault there is no config, so we cannot resolve an owner.
+#[test]
+fn test_cancel_auto_pay_vault_not_found() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client, _, _, _, _) = setup_test(&env);
+
+    let nonexistent_commitment = BytesN::from_array(&env, &[0xFFu8; 32]);
+
+    let result = client.try_cancel_auto_pay(&nonexistent_commitment, &0u32);
+    assert!(
+        matches!(
+            result,
+            Err(Ok(err)) if err == Error::from_contract_error(EscrowError::VaultNotFound as u32)
+        ),
+        "expected VaultNotFound for nonexistent vault, got: {:?}",
+        result
+    );
+}
