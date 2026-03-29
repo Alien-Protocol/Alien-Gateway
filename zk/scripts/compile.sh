@@ -2,19 +2,6 @@
 
 set -e
 
-# If `circom` is not installed in the environment, skip compilation
-# and exit successfully. This makes CI/runner resilient when the
-# native circom binary isn't available.
-if ! command -v circom >/dev/null 2>&1; then
-  echo ""
-  echo "================================================"
-  echo "   circom not found — skipping circuit compilation"
-  echo "   Install circom or add it to PATH to enable compile"
-  echo "================================================"
-  echo ""
-  exit 0
-fi
-
 # ─────────────────────────────────────────────
 #  Alien Gateway — ZK Circuit Compiler (Linux)
 # ─────────────────────────────────────────────
