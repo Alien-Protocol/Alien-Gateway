@@ -260,10 +260,8 @@ impl AddressManager {
         }
 
         #[allow(deprecated)]
-        env.events().publish(
-            (stellar_rem_event(&env),),
-            (username_hash, stellar_address),
-        );
+        env.events()
+            .publish((stellar_rem_event(&env),), (username_hash, stellar_address));
     }
 
     pub fn get_stellar_addresses(env: Env, username_hash: BytesN<32>) -> Vec<Address> {

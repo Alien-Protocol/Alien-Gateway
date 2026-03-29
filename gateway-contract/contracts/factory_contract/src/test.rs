@@ -12,7 +12,15 @@ struct StubContract;
 #[contractimpl]
 impl StubContract {}
 
-fn setup_factory(env: &Env) -> (Address, FactoryContractClient<'_>, Address, Address, Address) {
+fn setup_factory(
+    env: &Env,
+) -> (
+    Address,
+    FactoryContractClient<'_>,
+    Address,
+    Address,
+    Address,
+) {
     let factory_id = env.register(FactoryContract, ());
     let factory = FactoryContractClient::new(env, &factory_id);
     let admin = Address::generate(env);
@@ -36,13 +44,7 @@ fn setup_factory(env: &Env) -> (Address, FactoryContractClient<'_>, Address, Add
 
     factory.configure(&admin, &auction_contract, &core_contract);
 
-    (
-        factory_id,
-        factory,
-        auction_contract,
-        core_contract,
-        admin,
-    )
+    (factory_id, factory, auction_contract, core_contract, admin)
 }
 
 fn username_hash(env: &Env) -> BytesN<32> {

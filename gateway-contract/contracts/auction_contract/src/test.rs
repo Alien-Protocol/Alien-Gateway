@@ -539,7 +539,13 @@ fn test_create_auction_emits_event() {
     let (_, topics, data) = event;
     
     let event_name = soroban_sdk::Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap();
-    assert_eq!(event_name, soroban_sdk::Symbol::new(&env, "AuctionCreatedEvent"));
+    assert_eq!(
+        event_name,
+        soroban_sdk::Symbol::new(&env, "AuctionCreatedEvent")
+    );
+}
+
+#[test]
 fn test_get_auction_info() {
     let env = Env::default();
     env.mock_all_auths();

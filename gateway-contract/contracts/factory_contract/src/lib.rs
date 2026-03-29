@@ -42,12 +42,7 @@ impl FactoryContract {
     /// # Complexity
     ///
     /// O(1) - single storage write for each address.
-    pub fn configure(
-        env: Env,
-        admin: Address,
-        auction_contract: Address,
-        core_contract: Address,
-    ) {
+    pub fn configure(env: Env, admin: Address, auction_contract: Address, core_contract: Address) {
         if let Some(existing_admin) = get_admin(&env) {
             existing_admin.require_auth();
         } else {
@@ -126,8 +121,7 @@ impl FactoryContract {
         };
         auction_contract.require_auth();
 
-        let mut record = get_username(&env, &username_hash)
-            .expect("Username not deployed");
+        let mut record = get_username(&env, &username_hash).expect("Username not deployed");
 
         let old_owner = record.owner.clone();
         record.owner = new_owner.clone();
