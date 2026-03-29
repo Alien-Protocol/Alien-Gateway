@@ -15,4 +15,4 @@ template UsernameLeaf() {
 }
 
 // Main component for standalone compilation and testing
-component main {public [leaf]} = UsernameLeaf();
+component main = UsernameLeaf();

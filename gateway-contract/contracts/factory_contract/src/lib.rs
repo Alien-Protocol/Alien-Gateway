@@ -113,8 +113,7 @@ impl FactoryContract {
         };
         auction_contract.require_auth();
 
-        let mut record = get_username(&env, &username_hash)
-            .expect("Username not deployed");
+        let mut record = get_username(&env, &username_hash).expect("Username not deployed");
 
         let old_owner = record.owner.clone();
         record.owner = new_owner.clone();

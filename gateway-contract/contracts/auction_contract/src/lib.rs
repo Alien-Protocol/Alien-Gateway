@@ -12,6 +12,18 @@ pub mod types;
 // contract entrypoint module.
 use crate::events::{AUCTION_CLOSED, AUCTION_CREATED, BID_PLACED, BID_REFUNDED, USERNAME_CLAIMED};
 
+/// Return type for `get_auction_info`.
+type AuctionInfo = (
+    Address,
+    Address,
+    i128,
+    u64,
+    i128,
+    Option<Address>,
+    types::AuctionStatus,
+    bool,
+);
+
 /// Ensures event symbol constants are referenced from the crate root so the
 /// linker does not strip them when compiling to WASM.
 #[allow(dead_code)]
@@ -34,10 +46,7 @@ pub struct AuctionContract;
 /// Singleton flow: one auction per contract instance.
 #[contractimpl]
 impl AuctionContract {
-    pub fn close_auction(
-        env: Env,
-        username_hash: BytesN<32>,
-    ) -> Result<(), errors::AuctionError> {
+    pub fn close_auction(env: Env, username_hash: BytesN<32>) -> Result<(), errors::AuctionError> {
         singleton::close_auction(&env, username_hash)
     }
 
@@ -108,12 +117,7 @@ impl AuctionContract {
         storage::auction_set_outbid_amount(&env, id, &bidder, 0);
 
         // Emit a single refund event
-        events::emit_bid_refunded(
-            &env,
-            &BytesN::from_array(&env, &[0u8; 32]),
-            &bidder,
-            amount,
-        );
+        events::emit_bid_refunded(&env, &BytesN::from_array(&env, &[0u8; 32]), &bidder, amount);
     }
 
     pub fn close_auction_by_id(env: Env, id: u32) {
@@ -124,19 +128,7 @@ impl AuctionContract {
         indexed::claim(&env, id, claimant)
     }
 
-    pub fn get_auction_info(
-        env: Env,
-        id: u32,
-    ) -> Option<(
-        Address,
-        Address,
-        i128,
-        u64,
-        i128,
-        Option<Address>,
-        types::AuctionStatus,
-        bool,
-    )> {
+    pub fn get_auction_info(env: Env, id: u32) -> Option<AuctionInfo> {
         if !storage::auction_exists(&env, id) {
             return None;
         }

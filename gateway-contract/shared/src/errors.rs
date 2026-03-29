@@ -23,6 +23,7 @@ pub enum AuctionError {
     BidTooLow = 1007,
     AuctionNotOpen = 1008,
     AuctionNotClosed = 1009,
+    SelfOutbid = 1010,
 }
 
 #[contracterror]
@@ -98,6 +99,8 @@ pub enum CoreError {
     AlreadyInitialized = 4009,
     /// Commitment is already registered via register().
     AlreadyRegistered = 4010,
+    /// SMT root update is a no-op (same root).
+    RootUnchanged = 4011,
 }
 
 #[contracterror]

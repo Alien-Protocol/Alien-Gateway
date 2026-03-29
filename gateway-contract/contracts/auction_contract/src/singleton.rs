@@ -5,22 +5,19 @@ use soroban_sdk::{vec, Address, BytesN, Env, IntoVal, Symbol};
 
 use crate::{errors::AuctionError, events, storage, types};
 
-pub fn close_auction(
-    env: &Env,
-    username_hash: BytesN<32>,
-) -> Result<(), AuctionError> {
+pub fn close_auction(env: &Env, username_hash: BytesN<32>) -> Result<(), AuctionError> {
     let status = storage::get_status(env);
 
-        if status != types::AuctionStatus::Open {
-            return Err(AuctionError::AuctionNotOpen);
-        }
+    if status != types::AuctionStatus::Open {
+        return Err(AuctionError::AuctionNotOpen);
+    }
 
     let current_time = env.ledger().timestamp();
     let end_time = storage::get_end_time(env);
 
-        if current_time < end_time {
-            return Err(AuctionError::AuctionNotClosed);
-        }
+    if current_time < end_time {
+        return Err(AuctionError::AuctionNotClosed);
+    }
 
     storage::set_status(env, types::AuctionStatus::Closed);
 
@@ -29,43 +26,42 @@ pub fn close_auction(
 
     events::emit_auction_closed(env, &username_hash, winner, winning_bid);
 
-        Ok(())
-    }
+    Ok(())
+}
 
-    pub fn claim_username(
+pub fn claim_username(
     env: &Env,
-        username_hash: BytesN<32>,
-        claimer: Address,
-    ) -> Result<(), AuctionError> {
-        claimer.require_auth();
+    username_hash: BytesN<32>,
+    claimer: Address,
+) -> Result<(), AuctionError> {
+    claimer.require_auth();
 
     let status = storage::get_status(env);
 
-        if status == types::AuctionStatus::Claimed {
-            return Err(AuctionError::AlreadyClaimed);
-        }
+    if status == types::AuctionStatus::Claimed {
+        return Err(AuctionError::AlreadyClaimed);
+    }
 
-        if status != types::AuctionStatus::Closed {
-            return Err(AuctionError::NotClosed);
-        }
+    if status != types::AuctionStatus::Closed {
+        return Err(AuctionError::NotClosed);
+    }
 
     let highest_bidder = storage::get_highest_bidder(env);
-        if !highest_bidder.map(|h| h == claimer).unwrap_or(false) {
-            return Err(AuctionError::NotWinner);
-        }
+    if !highest_bidder.map(|h| h == claimer).unwrap_or(false) {
+        return Err(AuctionError::NotWinner);
+    }
 
     storage::set_status(env, types::AuctionStatus::Claimed);
 
-    let factory_addr = storage::get_factory_contract(env)
-            .ok_or(AuctionError::NoFactoryContract)?;
+    let factory_addr = storage::get_factory_contract(env).ok_or(AuctionError::NoFactoryContract)?;
 
     env.invoke_contract::<()>(
-            &factory_addr,
+        &factory_addr,
         &Symbol::new(env, "deploy_username"),
         vec![env, username_hash.into_val(env), claimer.into_val(env)],
-        );
+    );
 
     events::emit_username_claimed(env, &username_hash, &claimer);
 
-        Ok(())
+    Ok(())
 }

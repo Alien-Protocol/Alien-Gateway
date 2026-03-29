@@ -16,6 +16,9 @@ pub fn create_auction(
     if storage::auction_exists(env, id) {
         soroban_sdk::panic_with_error!(env, errors::AuctionError::AuctionNotOpen);
     }
+    if min_bid <= 0 {
+        soroban_sdk::panic_with_error!(env, errors::AuctionError::BidTooLow);
+    }
     if end_time <= env.ledger().timestamp() {
         soroban_sdk::panic_with_error!(env, errors::AuctionError::AuctionNotClosed);
     }
@@ -41,13 +44,19 @@ pub fn place_bid(env: &Env, id: u32, bidder: Address, amount: i128) {
     let token = soroban_sdk::token::Client::new(env, &asset);
     token.transfer(&bidder, env.current_contract_address(), &amount);
     if let Some(prev_bidder) = storage::auction_get_highest_bidder(env, id) {
-        token.transfer(&env.current_contract_address(), &prev_bidder, &highest_bid);
+        if prev_bidder == bidder {
+            soroban_sdk::panic_with_error!(env, errors::AuctionError::SelfOutbid);
+        }
+        storage::auction_set_outbid_amount(env, id, &prev_bidder, highest_bid);
     }
     storage::auction_set_highest_bidder(env, id, &bidder);
     storage::auction_set_highest_bid(env, id, amount);
 }
 
 pub fn close_auction_by_id(env: &Env, id: u32) {
+    if !storage::auction_exists(env, id) {
+        soroban_sdk::panic_with_error!(env, errors::AuctionError::AuctionNotOpen);
+    }
     let end_time = storage::auction_get_end_time(env, id);
     if env.ledger().timestamp() < end_time {
         soroban_sdk::panic_with_error!(env, errors::AuctionError::AuctionNotClosed);
