@@ -11,6 +11,8 @@ pub mod types;
 // Ensure event symbols are linked from the main
 // contract entrypoint module.
 use crate::events::{AUCTION_CLOSED, AUCTION_CREATED, BID_PLACED, BID_REFUNDED, USERNAME_CLAIMED};
+use crate::errors::AuctionError;
+use crate::types::AuctionStatus;
 
 /// Ensures event symbol constants are referenced from the crate root so the
 /// linker does not strip them when compiling to WASM.
@@ -23,6 +25,14 @@ fn _touch_event_symbols() {
         USERNAME_CLAIMED,
         BID_REFUNDED,
     );
+}
+
+#[allow(clippy::missing_docs_in_private_items)]
+fn require_status(env: &Env, status: AuctionStatus, expected: AuctionStatus, err: AuctionError) {
+    let _ = env;
+    if status != expected {
+        soroban_sdk::panic_with_error!(env, err);
+    }
 }
 
 #[cfg(test)]
@@ -116,6 +126,7 @@ impl AuctionContract {
         indexed::claim(&env, id, claimant)
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn get_auction_info(
         env: Env,
         id: u32,

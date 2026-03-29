@@ -1,6 +1,6 @@
-use soroban_sdk::{contracttype, Address, BytesN, Env};
+use soroban_sdk::{Address, BytesN, Env};
 
-use crate::types::{DeployConfig, UsernameRecord};
+use crate::types::{DataKey, DeployConfig, UsernameRecord};
 
 /// TTL constants for persistent storage entries.
 /// Bump amount: ~30 days (at ~5s per ledger close).
@@ -8,19 +8,6 @@ pub(crate) const PERSISTENT_BUMP_AMOUNT: u32 = 518_400;
 /// Lifetime threshold: ~7 days — entries are extended when remaining TTL drops below this.
 pub(crate) const PERSISTENT_LIFETIME_THRESHOLD: u32 = 120_960;
 
-/// Storage keys used by the factory contract.
-#[contracttype]
-#[derive(Clone)]
-pub enum DataKey {
-    /// Address of the auction contract authorised to deploy usernames.
-    AuctionContract,
-    /// Address of the core contract associated with new usernames.
-    CoreContract,
-    /// Record for a registered username, keyed by its 32-byte hash.
-    Username(BytesN<32>),
-    /// Optional deployment configuration for the factory.
-    Config,
-}
 
 /// Persists the auction contract address in instance storage.
 pub fn set_auction_contract(env: &Env, auction_contract: &Address) {

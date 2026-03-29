@@ -27,6 +27,17 @@ fn commitment(env: &Env, seed: u8) -> BytesN<32> {
     BytesN::from_array(env, &[seed; 32])
 }
 
+fn assert_event_symbol(
+    env: &Env,
+    event: &(Address, std::vec::Vec<Val>, Val),
+    expected: Symbol,
+) {
+    use soroban_sdk::TryFromVal;
+
+    let event_name = Symbol::try_from_val(env, &event.1.get(0).unwrap()).unwrap();
+    assert_eq!(event_name, expected);
+}
+
 // ── registration tests ───────────────────────────────────────────────────────
 
 #[test]
@@ -1127,6 +1138,106 @@ fn test_transfer_non_owner_panics() {
     };
     // attacker is not the owner → Unauthorized (#7)
     client.transfer(&attacker, &hash, &new_owner, &dummy_proof(&env), &signals);
+}
+
+#[test]
+fn test_full_identity_lifecycle() {
+    use crate::events::{REGISTER_EVENT, ROOT_UPDATED, TRANSFER_EVENT};
+
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let new_owner = Address::generate(&env);
+    let hash = commitment(&env, 100);
+
+    // Initialize the contract owner so new_owner can update the SMT root later.
+    client.initialize(&new_owner);
+    let mut events_len = env.events().all().len();
+
+    // register
+    client.register(&owner, &hash);
+    let events = env.events().all();
+    assert_eq!(events.len(), events_len + 1);
+    let register_event = events.last().unwrap();
+    assert_event_symbol(&env, register_event, REGISTER_EVENT);
+    let (commitment, registered_owner): (BytesN<32>, Address) =
+        register_event.2.into_val(&env);
+    assert_eq!(commitment, hash);
+    assert_eq!(registered_owner, owner);
+    assert_eq!(client.get_owner(&hash), Some(owner.clone()));
+    env.as_contract(&contract_id, || {
+        assert_eq!(SmtRoot::get_root(env.clone()), None);
+    });
+    events_len = events.len();
+
+    // set_root
+    let root1 = BytesN::from_array(&env, &[1u8; 32]);
+    client.update_smt_root(&root1);
+    let events = env.events().all();
+    assert_eq!(events.len(), events_len + 1);
+    let root_event = events.last().unwrap();
+    assert_event_symbol(&env, root_event, ROOT_UPDATED);
+    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) =
+        root_event.2.into_val(&env);
+    assert_eq!(old_root, None);
+    assert_eq!(new_root, root1);
+    assert_eq!(client.get_smt_root(), root1);
+    assert_eq!(client.get_owner(&hash), Some(owner.clone()));
+    events_len = events.len();
+
+    // add_stellar_address
+    let stellar = Address::generate(&env);
+    client.add_stellar_address(&owner, &hash, &stellar);
+    assert_eq!(client.resolve_stellar(&hash), stellar);
+    assert_eq!(client.get_smt_root(), root1);
+    assert_eq!(client.get_owner(&hash), Some(owner.clone()));
+    let events = env.events().all();
+    assert_eq!(events.len(), events_len);
+
+    // transfer
+    let root2 = BytesN::from_array(&env, &[2u8; 32]);
+    let signals = PublicSignals {
+        old_root: root1.clone(),
+        new_root: root2.clone(),
+    };
+    client.transfer(&owner, &hash, &new_owner, &dummy_proof(&env), &signals);
+
+    let events = env.events().all();
+    assert_eq!(events.len(), events_len + 2);
+    let transfer_event = events.last().unwrap();
+    assert_event_symbol(&env, transfer_event, TRANSFER_EVENT);
+    let (commitment, from_owner, to_owner): (BytesN<32>, Address, Address) =
+        transfer_event.2.into_val(&env);
+    assert_eq!(commitment, hash);
+    assert_eq!(from_owner, owner);
+    assert_eq!(to_owner, new_owner);
+
+    let root_event = &events[events.len() - 2];
+    assert_event_symbol(&env, root_event, ROOT_UPDATED);
+    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) =
+        root_event.2.into_val(&env);
+    assert_eq!(old_root, Some(root1));
+    assert_eq!(new_root, root2);
+
+    assert_eq!(client.get_owner(&hash), Some(new_owner.clone()));
+    assert_eq!(client.get_smt_root(), root2);
+    events_len = events.len();
+
+    // new_owner updates root
+    let root3 = BytesN::from_array(&env, &[3u8; 32]);
+    client.update_smt_root(&root3);
+    let events = env.events().all();
+    assert_eq!(events.len(), events_len + 1);
+    let root_event = events.last().unwrap();
+    assert_event_symbol(&env, root_event, ROOT_UPDATED);
+    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) =
+        root_event.2.into_val(&env);
+    assert_eq!(old_root, Some(root2));
+    assert_eq!(new_root, root3);
+    assert_eq!(client.get_smt_root(), root3);
+    assert_eq!(client.get_owner(&hash), Some(new_owner));
 }
 
 // ── address validation failures ───────────────────────────────────────────────
