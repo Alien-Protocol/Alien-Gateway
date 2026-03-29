@@ -211,4 +211,10 @@ impl Events {
         }
         .publish(env);
     }
+
+    /// Emits an AUTO_CANCEL event to the host with topics (symbol!("AUTO_CANCEL"), rule_id) and data (from).
+    pub fn auto_cancel(env: &Env, rule_id: u32, from: BytesN<32>) {
+    let topics = (Symbol::new(env, "AUTO_CANCEL"), rule_id);
+    env.events().publish(topics, from);
+}
 }

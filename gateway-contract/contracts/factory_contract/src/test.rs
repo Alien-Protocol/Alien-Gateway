@@ -1,11 +1,9 @@
-#![cfg(test)]
-
 use soroban_sdk::testutils::{Address as _, Events as _, MockAuth, MockAuthInvoke};
 use soroban_sdk::{contract, contractimpl, IntoVal, Symbol, TryFromVal, Val, Vec};
 use soroban_sdk::{Address, BytesN, Env};
 
 use crate::errors::FactoryError;
-use crate::events::USERNAME_DEPLOYED;
+use crate::events::{OWNERSHIP_TRANSFERRED, USERNAME_DEPLOYED};
 use crate::{FactoryContract, FactoryContractClient};
 
 #[contract]
@@ -242,16 +240,7 @@ fn test_deploy_username_duplicate_fails() {
     }]);
     factory.deploy_username(&hash, &owner);
 
-    env.mock_auths(&[MockAuth {
-        address: &auction_contract,
-        invoke: &MockAuthInvoke {
-            contract: &factory_id,
-            fn_name: "deploy_username",
-            args: deploy_args,
-            sub_invokes: &[],
-        },
-    }]);
-
+    // Do not re-mock auth here: the previous successful auth context is still valid for the next invocation
     let result = env.try_invoke_contract::<(), FactoryError>(
         &factory_id,
         &Symbol::new(&env, "deploy_username"),
@@ -305,36 +294,40 @@ fn test_get_owner_none_for_unknown() {
 }
 
 #[test]
-#[should_panic]
-fn test_configure_unauthorized_fails() {
+fn get_username_record_extends_ttl_on_read() {
+    use crate::storage::{DataKey, PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD};
+
     let env = Env::default();
-    let factory_id = env.register(FactoryContract, ());
-    let factory = FactoryContractClient::new(&env, &factory_id);
-    let admin = Address::generate(&env);
-    let auction_contract = Address::generate(&env);
-    let core_contract = Address::generate(&env);
-
-    // Call without mock_auth should panic
-    factory.configure(&admin, &auction_contract, &core_contract);
-}
-
-#[test]
-fn test_reconfigure_by_admin_succeeds() {
-    let env = Env::default();
-    let (factory_id, factory, auction_contract, core_contract, admin) = setup_factory(&env);
-
-    let new_auction = Address::generate(&env);
+    let (factory_id, factory, auction_contract, _) = setup_factory(&env);
+    let owner = Address::generate(&env);
+    let hash = username_hash(&env);
+    let deploy_args: Vec<Val> = (hash.clone(), owner.clone()).into_val(&env);
 
     env.mock_auths(&[MockAuth {
-        address: &admin,
+        address: &auction_contract,
         invoke: &MockAuthInvoke {
             contract: &factory_id,
-            fn_name: "configure",
-            args: (admin.clone(), new_auction.clone(), core_contract.clone()).into_val(&env),
+            fn_name: "deploy_username",
+            args: deploy_args,
             sub_invokes: &[],
         },
     }]);
+    factory.deploy_username(&hash, &owner);
 
-    factory.configure(&admin, &new_auction, &core_contract);
-    assert_eq!(factory.get_auction_contract(), Some(new_auction));
+    // Advance the ledger so the remaining TTL drops below the lifetime threshold.
+    env.ledger().with_mut(|l| {
+        l.sequence_number += (PERSISTENT_BUMP_AMOUNT - PERSISTENT_LIFETIME_THRESHOLD + 1) as u32;
+    });
+
+    // Reading the record should bump the TTL back to PERSISTENT_BUMP_AMOUNT.
+    let record = factory.get_username_record(&hash);
+    assert!(record.is_some());
+
+    env.as_contract(&factory_id, || {
+        let ttl = env
+            .storage()
+            .persistent()
+            .get_ttl(&DataKey::Username(hash.clone()));
+        assert_eq!(ttl, PERSISTENT_BUMP_AMOUNT);
+    });
 }

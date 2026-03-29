@@ -10,14 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
-          cache-dependency-path: zk/package-lock.json   
+          cache-dependency-path: zk/package-lock.json
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -32,7 +32,7 @@ jobs:
 
       - name: Install ZK Dependencies
         working-directory: ./zk
-        run: npm ci
+        run: npm ci --workspaces=false
 
       - name: Add node_modules to PATH
         working-directory: ./zk
@@ -41,8 +41,8 @@ jobs:
       - name: Compile Circuits
         working-directory: ./zk
         run: |
-          ./scripts/compile.sh
-          ./scripts/trusted-setup.sh
+          bash ./scripts/compile.sh
+          bash ./scripts/trusted-setup.sh
 
       - name: Run ZK E2E Tests
         working-directory: ./zk

@@ -1,6 +1,5 @@
 {
-  "dependencies": {
-    "@alien-protocol/sdk": "0.1.0",
+  "dependencies": { 
     "@types/node": "20.19.37",
     "undici-types": "6.21.0"
   },

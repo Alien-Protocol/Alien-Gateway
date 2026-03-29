@@ -1,3 +1,4 @@
+
 use soroban_sdk::{contractevent, symbol_short, Address, BytesN, Env, Symbol};
 
 // Event symbols must be <= 9 chars (Soroban `symbol_short!`).
@@ -97,10 +98,8 @@ pub fn emit_bid_refunded(
     bidder: &Address,
     refund_amount: i128,
 ) {
-    BidRefundedEvent {
-        username_hash: username_hash.clone(),
-        bidder: bidder.clone(),
-        refund_amount,
-    }
-    .publish(env);
+    // Publish a canonical event with the BID_REFUNDED symbol and username_hash as topic,
+    // and (bidder, refund_amount) as the data tuple. Using explicit publish ensures the
+    // first topic is the event symbol which tests rely on.
+    env.events().publish((BID_REFUNDED, username_hash.clone()), (bidder.clone(), refund_amount));
 }

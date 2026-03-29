@@ -5,8 +5,13 @@ members = [
   "contracts/core_contract",
   "contracts/escrow_contract",
   "contracts/factory_contract",
+  "shared",
   "tests",
 ]
+
+[workspace.lints.clippy]
+missing_docs_in_private_items = "warn"
+unwrap_used = "warn"
 
 [workspace.dependencies]
 soroban-sdk = "23"
