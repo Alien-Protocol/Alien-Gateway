@@ -11,6 +11,7 @@ pub(crate) const PERSISTENT_LIFETIME_THRESHOLD: u32 = 120_960;
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
+    Admin,
     AuctionContract,
     CoreContract,
     Username(BytesN<32>),
@@ -39,6 +40,16 @@ pub fn get_core_contract(env: &Env) -> Option<Address> {
     env.storage()
         .instance()
         .get::<DataKey, Address>(&DataKey::CoreContract)
+}
+
+pub fn set_admin(env: &Env, admin: &Address) {
+    env.storage().instance().set(&DataKey::Admin, admin);
+}
+
+pub fn get_admin(env: &Env) -> Option<Address> {
+    env.storage()
+        .instance()
+        .get::<DataKey, Address>(&DataKey::Admin)
 }
 
 pub fn set_username(env: &Env, hash: &BytesN<32>, record: &UsernameRecord) {

@@ -13,8 +13,8 @@ use soroban_sdk::{contract, contractimpl, panic_with_error, Address, BytesN, Env
 use crate::errors::FactoryError;
 use crate::events::emit_username_deployed;
 use crate::storage::{
-    get_auction_contract, get_core_contract, get_username, has_username, set_auction_contract,
-    set_core_contract, set_username,
+    get_admin, get_auction_contract, get_core_contract, get_username, has_username, set_admin,
+    set_auction_contract, set_core_contract, set_username,
 };
 use crate::types::UsernameRecord;
 
@@ -26,17 +26,30 @@ impl FactoryContract {
     /// Configures the factory with the auction and core contract addresses.
     ///
     /// This should be called to link the factory with other system components.
+    /// Initial call sets the admin. Subsequent calls require the current admin's auth.
     ///
     /// # Arguments
     ///
     /// * `env` - The Soroban environment.
+    /// * `admin` - The address that will be the administrator for this contract.
     /// * `auction_contract` - The address of the auction contract authorized to deploy usernames.
     /// * `core_contract` - The address of the core contract to be associated with new usernames.
     ///
     /// # Complexity
     ///
     /// O(1) - single storage write for each address.
-    pub fn configure(env: Env, auction_contract: Address, core_contract: Address) {
+    pub fn configure(
+        env: Env,
+        admin: Address,
+        auction_contract: Address,
+        core_contract: Address,
+    ) {
+        if let Some(existing_admin) = get_admin(&env) {
+            existing_admin.require_auth();
+        } else {
+            admin.require_auth();
+        }
+        set_admin(&env, &admin);
         set_auction_contract(&env, &auction_contract);
         set_core_contract(&env, &core_contract);
     }

@@ -14,15 +14,37 @@ struct StubContract;
 #[contractimpl]
 impl StubContract {}
 
-fn setup_factory(env: &Env) -> (Address, FactoryContractClient<'_>, Address, Address) {
+fn setup_factory(env: &Env) -> (Address, FactoryContractClient<'_>, Address, Address, Address) {
     let factory_id = env.register(FactoryContract, ());
     let factory = FactoryContractClient::new(env, &factory_id);
+    let admin = Address::generate(env);
     let auction_contract = env.register(StubContract, ());
     let core_contract = env.register(StubContract, ());
 
-    factory.configure(&auction_contract, &core_contract);
+    env.mock_auths(&[MockAuth {
+        address: &admin,
+        invoke: &MockAuthInvoke {
+            contract: &factory_id,
+            fn_name: "configure",
+            args: (
+                admin.clone(),
+                auction_contract.clone(),
+                core_contract.clone(),
+            )
+                .into_val(env),
+            sub_invokes: &[],
+        },
+    }]);
 
-    (factory_id, factory, auction_contract, core_contract)
+    factory.configure(&admin, &auction_contract, &core_contract);
+
+    (
+        factory_id,
+        factory,
+        auction_contract,
+        core_contract,
+        admin,
+    )
 }
 
 fn username_hash(env: &Env) -> BytesN<32> {
@@ -36,7 +58,7 @@ fn username_hash(env: &Env) -> BytesN<32> {
 #[test]
 fn deploy_username_stores_record_and_emits_event() {
     let env = Env::default();
-    let (factory_id, factory, auction_contract, core_contract) = setup_factory(&env);
+    let (factory_id, factory, auction_contract, core_contract, _) = setup_factory(&env);
     let owner = Address::generate(&env);
     let hash = username_hash(&env);
     let deploy_args: Vec<Val> = (hash.clone(), owner.clone()).into_val(&env);
@@ -78,7 +100,7 @@ fn deploy_username_stores_record_and_emits_event() {
 #[test]
 fn duplicate_deployment_is_rejected() {
     let env = Env::default();
-    let (factory_id, factory, auction_contract, _) = setup_factory(&env);
+    let (factory_id, factory, auction_contract, _, _) = setup_factory(&env);
     let owner = Address::generate(&env);
     let hash = username_hash(&env);
     let deploy_args: Vec<Val> = (hash.clone(), owner.clone()).into_val(&env);
@@ -118,7 +140,7 @@ fn duplicate_deployment_is_rejected() {
 #[test]
 fn non_registered_auction_auth_is_rejected() {
     let env = Env::default();
-    let (factory_id, _, auction_contract, _) = setup_factory(&env);
+    let (factory_id, _, auction_contract, _, _) = setup_factory(&env);
     let wrong_caller = env.register(StubContract, ());
     let owner = Address::generate(&env);
     let hash = username_hash(&env);
@@ -146,7 +168,7 @@ fn non_registered_auction_auth_is_rejected() {
 #[test]
 fn get_username_owner_returns_owner_after_deploy() {
     let env = Env::default();
-    let (factory_id, factory, auction_contract, _) = setup_factory(&env);
+    let (factory_id, factory, auction_contract, _, _) = setup_factory(&env);
     let owner = Address::generate(&env);
     let hash = username_hash(&env);
     let deploy_args: Vec<Val> = (hash.clone(), owner.clone()).into_val(&env);
@@ -168,7 +190,7 @@ fn get_username_owner_returns_owner_after_deploy() {
 #[test]
 fn get_username_owner_returns_none_for_unregistered_hash() {
     let env = Env::default();
-    let (_, factory, _, _) = setup_factory(&env);
+    let (_, factory, _, _, _) = setup_factory(&env);
     let unknown_hash = BytesN::from_array(&env, &[0xFF; 32]);
 
     assert_eq!(factory.get_username_owner(&unknown_hash), None);
@@ -181,7 +203,7 @@ fn get_username_owner_returns_none_for_unregistered_hash() {
 #[test]
 fn test_deploy_username_success() {
     let env = Env::default();
-    let (factory_id, factory, auction_contract, _core_contract) = setup_factory(&env);
+    let (factory_id, factory, auction_contract, _core_contract, _) = setup_factory(&env);
     let owner = Address::generate(&env);
     let hash = BytesN::from_array(&env, &[10; 32]);
     let deploy_args: Vec<Val> = (hash.clone(), owner.clone()).into_val(&env);
@@ -204,7 +226,7 @@ fn test_deploy_username_success() {
 #[test]
 fn test_deploy_username_duplicate_fails() {
     let env = Env::default();
-    let (factory_id, factory, auction_contract, _) = setup_factory(&env);
+    let (factory_id, factory, auction_contract, _, _) = setup_factory(&env);
     let owner = Address::generate(&env);
     let hash = BytesN::from_array(&env, &[11; 32]);
     let deploy_args: Vec<Val> = (hash.clone(), owner.clone()).into_val(&env);
@@ -245,7 +267,7 @@ fn test_deploy_username_duplicate_fails() {
 #[test]
 fn test_deploy_unauthorized_fails() {
     let env = Env::default();
-    let (factory_id, _, _, _) = setup_factory(&env);
+    let (factory_id, _, _, _, _) = setup_factory(&env);
     let wrong_caller = Address::generate(&env);
     let owner = Address::generate(&env);
     let hash = BytesN::from_array(&env, &[12; 32]);
@@ -276,8 +298,43 @@ fn test_deploy_unauthorized_fails() {
 #[test]
 fn test_get_owner_none_for_unknown() {
     let env = Env::default();
-    let (_, factory, _, _) = setup_factory(&env);
+    let (_, factory, _, _, _) = setup_factory(&env);
     let unknown_hash = BytesN::from_array(&env, &[99; 32]);
     let record = factory.get_username_record(&unknown_hash);
     assert!(record.is_none());
+}
+
+#[test]
+#[should_panic]
+fn test_configure_unauthorized_fails() {
+    let env = Env::default();
+    let factory_id = env.register(FactoryContract, ());
+    let factory = FactoryContractClient::new(&env, &factory_id);
+    let admin = Address::generate(&env);
+    let auction_contract = Address::generate(&env);
+    let core_contract = Address::generate(&env);
+
+    // Call without mock_auth should panic
+    factory.configure(&admin, &auction_contract, &core_contract);
+}
+
+#[test]
+fn test_reconfigure_by_admin_succeeds() {
+    let env = Env::default();
+    let (factory_id, factory, auction_contract, core_contract, admin) = setup_factory(&env);
+
+    let new_auction = Address::generate(&env);
+
+    env.mock_auths(&[MockAuth {
+        address: &admin,
+        invoke: &MockAuthInvoke {
+            contract: &factory_id,
+            fn_name: "configure",
+            args: (admin.clone(), new_auction.clone(), core_contract.clone()).into_val(&env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    factory.configure(&admin, &new_auction, &core_contract);
+    assert_eq!(factory.get_auction_contract(), Some(new_auction));
 }
