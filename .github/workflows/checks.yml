@@ -11,42 +11,26 @@ env:
 
 jobs:
   checks:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
 
     defaults:
       run:
-        working-directory: gateway-contract  
-
+        working-directory: gateway-contract
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install Rust
-      run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-        source $HOME/.cargo/env
-
-    - name: Install Rust target for Soroban
-      run: |
-        source $HOME/.cargo/env
-        rustup target add wasm32v1-none
-
-    - name: Install rustfmt and clippy
-      run: |
-        source $HOME/.cargo/env
-        rustup component add rustfmt clippy
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+        targets: wasm32-unknown-unknown
 
     - name: Check formatting
-      run: |
-        source $HOME/.cargo/env
-        cargo fmt --check
+      run: cargo fmt --all --check
 
     - name: Run Clippy lints
-      run: |
-        source $HOME/.cargo/env
-        cargo clippy -- -D warnings
+      run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
     - name: Cargo check
-      run: |
-        source $HOME/.cargo/env
-        cargo check --verbose
+      run: cargo check --workspace --all-targets --verbose

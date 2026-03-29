@@ -2,15 +2,12 @@
   "name": "zk",
   "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "sdk"
-  ],
   "description": "",
   "main": "scripts/verify_proof.ts",
   "scripts": {
     "verify:proof": "ts-node scripts/verify_proof.ts",
     "test:verify": "ts-node tests/test_verify_proof.ts",
-    "test:sdk": "node --test -r ts-node/register sdk/src/__tests__/proof.test.ts sdk/src/__tests__/register.integration.test.ts sdk/src/__tests__/wallets.test.ts",
+    "test:sdk": "node --test -r ts-node/register ../sdk/src/__tests__/proof.test.ts ../sdk/src/__tests__/register.integration.test.ts ../sdk/src/__tests__/wallets.test.ts",
     "test": "node tests/test_update_proof.js && node tests/test_non_inclusion_proof.js",
     "test:update_proof": "node tests/test_update_proof.js",
     "test:non_inclusion": "node tests/test_non_inclusion_proof.js",

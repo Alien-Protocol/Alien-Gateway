@@ -62,7 +62,22 @@ pub struct ScheduledPayment {
     pub executed: bool,
 }
 
-/// Legacy combined vault record (pre-split architecture). Used only for backward-compatible reads.
+/// Legacy combined vault record (pre-split architecture; kept for migration compatibility).
+///
+/// - Historical key: `DataKey::Vault(BytesN<32>)`.
+/// - Current split keys: `DataKey::VaultConfig(BytesN<32>)` + `DataKey::VaultState(BytesN<32>)`.
+/// - Migration path: `read_vault_config` and `read_vault_state` in `storage.rs` first query the split keys;
+///   if absent, they fall back to `LegacyVault` and project into the new types.
+/// - Snapshot tests that currently record the legacy key form are in:
+///   - `gateway-contract/contracts/escrow_contract/test_snapshots/test/test_auto_pay_setup_success.1.json`
+///   - `gateway-contract/contracts/escrow_contract/test_snapshots/test/test_auto_pay_trigger_success.1.json`
+///   - `gateway-contract/contracts/escrow_contract/test_snapshots/test/test_auto_pay_second_cycle_success.1.json`
+///   - `gateway-contract/contracts/escrow_contract/test_snapshots/test/test_auto_pay_insufficient_balance_panics.1.json`
+///   - `gateway-contract/contracts/escrow_contract/test_snapshots/test/test_auto_pay_early_trigger_panics.1.json`
+///
+/// Removing the legacy form is safe after a one-time migration rewrites every on-chain
+/// `DataKey::Vault(BytesN<32>)` entry into `DataKey::VaultConfig(BytesN<32>)` plus
+/// `DataKey::VaultState(BytesN<32>)`, and those snapshot fixtures are regenerated.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LegacyVault {

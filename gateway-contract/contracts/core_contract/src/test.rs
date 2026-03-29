@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use crate::registration::DataKey as RegistrationKey;
 use crate::smt_root::SmtRoot;
 use crate::types::{AddressMetadata, ChainType, PrivacyMode, PublicSignals};
