@@ -2,10 +2,10 @@ use crate::types::{AuctionStatus, DataKey};
 use soroban_sdk::{Address, Env, BytesN};
 
 /// TTL constants for persistent storage entries.
-/// Bump amount: ~30 days (at ~5s per ledger close).
-pub(crate) const PERSISTENT_BUMP_AMOUNT: u32 = 518_400;
-/// Lifetime threshold: ~7 days — entries are extended when remaining TTL drops below this.
-pub(crate) const PERSISTENT_LIFETIME_THRESHOLD: u32 = 120_960;
+/// PERSISTENT_BUMP_AMOUNT: 30 days × 24h × 3600s / 5s per ledger = 518_400 ledgers
+pub(crate) const PERSISTENT_BUMP_AMOUNT: u32 = 518_400; // 30 * 24 * 3600 / 5
+/// PERSISTENT_LIFETIME_THRESHOLD: 7 days × 24h × 3600s / 5s per ledger = 120_960 ledgers
+pub(crate) const PERSISTENT_LIFETIME_THRESHOLD: u32 = 120_960; // 7 * 24 * 3600 / 5
 
 pub fn get_status(env: &Env) -> AuctionStatus {
     env.storage()

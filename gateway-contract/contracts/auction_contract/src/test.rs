@@ -76,6 +76,16 @@ impl DummyFactory {
     pub fn deploy_username(_env: Env, _username_hash: BytesN<32>, _claimer: Address) {}
 }
 
+// ── TTL constant sanity checks ────────────────────────────────────────────────
+
+#[test]
+fn test_ttl_constants_match_formula() {
+    // 30 days * 24h * 3600s / 5s per ledger = 518_400
+    assert_eq!(storage::PERSISTENT_BUMP_AMOUNT, 30 * 24 * 3600 / 5);
+    // 7 days * 24h * 3600s / 5s per ledger = 120_960
+    assert_eq!(storage::PERSISTENT_LIFETIME_THRESHOLD, 7 * 24 * 3600 / 5);
+}
+
 // ── existing tests ────────────────────────────────────────────────────────────
 
 #[test]

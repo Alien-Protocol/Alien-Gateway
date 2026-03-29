@@ -5,7 +5,7 @@ use crate::{Contract, ContractClient};
 use escrow_contract::types::{
     AutoPay, ScheduledPayment as EscrowScheduledPayment, VaultConfig, VaultState,
 };
-use soroban_sdk::testutils::{Address as _, Events, MockAuth, MockAuthInvoke};
+use soroban_sdk::testutils::{Address as _, Events, Ledger as _, MockAuth, MockAuthInvoke};
 use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, IntoVal, Symbol, Val, Vec};
 
 fn setup(env: &Env) -> (Address, ContractClient<'_>) {
@@ -1422,4 +1422,70 @@ fn test_add_shielded_address_unregistered_panics() {
 
     let result = client.try_add_shielded_address(&caller, &hash, &addr_commitment);
     assert!(result.is_err());
+}
+
+// ============================================================================
+// get_created_at tests
+// ============================================================================
+
+#[test]
+fn test_get_created_at_returns_none_for_unregistered() {
+    let env = Env::default();
+    let (_, client) = setup(&env);
+
+    let hash = commitment(&env, 90);
+    assert_eq!(client.get_created_at(&hash), None);
+}
+
+#[test]
+fn test_get_created_at_returns_timestamp_after_register() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 91);
+
+    client.register(&owner, &hash);
+
+    // The default test env ledger timestamp is 0
+    assert_eq!(client.get_created_at(&hash), Some(0u64));
+}
+
+#[test]
+fn test_get_created_at_reflects_ledger_timestamp() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    env.ledger().set_timestamp(1_700_000_000);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 92);
+
+    client.register(&owner, &hash);
+
+    assert_eq!(client.get_created_at(&hash), Some(1_700_000_000u64));
+}
+
+#[test]
+fn test_get_created_at_unchanged_after_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    env.ledger().set_timestamp(1_000_000);
+
+    let owner = Address::generate(&env);
+    let new_owner = Address::generate(&env);
+    let hash = commitment(&env, 93);
+
+    client.register(&owner, &hash);
+    assert_eq!(client.get_created_at(&hash), Some(1_000_000u64));
+
+    // Advance time and transfer — created_at must remain the original timestamp
+    env.ledger().set_timestamp(2_000_000);
+    client.transfer_ownership(&owner, &hash, &new_owner);
+
+    assert_eq!(client.get_created_at(&hash), Some(1_000_000u64));
 }

@@ -106,7 +106,7 @@ use address_manager::AddressManager;
 use admin::Admin;
 use registration::Registration;
 use resolver::Resolver;
-use soroban_sdk::{contract, contractimpl, symbol_short, Address, Bytes, BytesN, Env, Symbol};
+use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env};
 use transfer::Transfer;
 use types::{ChainType, PrivacyMode, PublicSignals};
 
@@ -148,7 +148,11 @@ impl Contract {
 
     /// Gets the owner of a commitment. See [registration::Registration::get_owner].
     pub fn get_owner(e: Env, h: BytesN<32>) -> Option<Address> { Registration::get_owner(e, h) }
-    pub fn get_username(e: Env) -> Option<Symbol> { e.storage().instance().get(&symbol_short!("Username")) }
+
+    /// Gets the registration ledger timestamp for a commitment. See [registration::Registration::get_created_at].
+    pub fn get_created_at(e: Env, h: BytesN<32>) -> Option<u64> { Registration::get_created_at(e, h) }
+
+    /// Adds a blockchain address for a commitment. See [address_manager::AddressManager::add_chain_address].
     pub fn add_chain_address(e: Env, c: Address, h: BytesN<32>, t: ChainType, a: Bytes) { AddressManager::add_chain_address(e, c, h, t, a); }
 
     /// Gets the blockchain address for a commitment. See [address_manager::AddressManager::get_chain_address].
@@ -159,8 +163,11 @@ impl Contract {
 
     /// Adds a Stellar address for a commitment. See [address_manager::AddressManager::add_stellar_address].
     pub fn add_stellar_address(e: Env, c: Address, h: BytesN<32>, a: Address) { AddressManager::add_stellar_address(e, c, h, a); }
+
     /// Removes a Stellar address for a commitment. See [address_manager::AddressManager::remove_stellar_address].
     pub fn remove_stellar_address(e: Env, c: Address, h: BytesN<32>, a: Address) { AddressManager::remove_stellar_address(e, c, h, a); }
+
+    /// Gets all Stellar addresses for a commitment. See [address_manager::AddressManager::get_stellar_addresses].
     pub fn get_stellar_addresses(e: Env, h: BytesN<32>) -> soroban_sdk::Vec<Address> { AddressManager::get_stellar_addresses(e, h) }
 
     /// Resolves a commitment to its Stellar address. See [address_manager::AddressManager::resolve_stellar].

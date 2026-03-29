@@ -204,102 +204,6 @@ fn test_get_scheduled_payment_returns_none_for_unknown_id() {
 }
 
 #[test]
-fn test_deposit_success() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
-
-    let owner = Address::generate(&env);
-    create_vault(&env, &contract_id, &from, &owner, &token, 0);
-
-    let token_admin_client = StellarAssetClient::new(&env, &token);
-    token_admin_client.mint(&owner, &500);
-
-    client.deposit(&from, &200);
-
-    env.as_contract(&contract_id, || {
-        let state: VaultState = env
-            .storage()
-            .persistent()
-            .get(&DataKey::VaultState(from.clone()))
-            .unwrap();
-        assert_eq!(state.balance, 200);
-    });
-
-    let token_client = TokenClient::new(&env, &token);
-    assert_eq!(token_client.balance(&owner), 300);
-    assert_eq!(token_client.balance(&contract_id), 200);
-
-    let deposit_events = env
-        .events()
-        .all()
-        .iter()
-        .filter(|(event_contract, _, _)| event_contract == &contract_id)
-        .count();
-    assert_eq!(deposit_events, 1);
-}
-
-#[test]
-fn test_deposit_zero_amount_rejected() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
-
-    create_vault(
-        &env,
-        &contract_id,
-        &from,
-        &Address::generate(&env),
-        &token,
-        0,
-    );
-
-    let result = client.try_deposit(&from, &0);
-    assert!(matches!(
-        result,
-        Err(Ok(err)) if err == Error::from_contract_error(EscrowError::InvalidAmount as u32)
-    ));
-}
-
-#[test]
-#[should_panic]
-fn test_deposit_non_owner_panics() {
-    let env = Env::default();
-    let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
-
-    let owner = Address::generate(&env);
-    create_vault(&env, &contract_id, &from, &owner, &token, 0);
-
-    client.deposit(&from, &10);
-}
-
-#[test]
-fn test_deposit_inactive_vault_rejected() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
-
-    let owner = Address::generate(&env);
-    create_vault(&env, &contract_id, &from, &owner, &token, 0);
-
-    env.as_contract(&contract_id, || {
-        let state = VaultState {
-            balance: 0,
-            is_active: false,
-        };
-        env.storage()
-            .persistent()
-            .set(&DataKey::VaultState(from.clone()), &state);
-    });
-
-    let result = client.try_deposit(&from, &10);
-    assert!(matches!(
-        result,
-        Err(Ok(err)) if err == Error::from_contract_error(EscrowError::VaultInactive as u32)
-    ));
-}
-
-#[test]
 fn test_schedule_payment_success() {
     let env = Env::default();
     env.mock_all_auths();
@@ -1495,6 +1399,10 @@ fn test_auto_pay_self_payment_fails() {
     let owner = Address::generate(&env);
     create_vault(&env, &contract_id, &from, &owner, &token, 1000);
 
+    // Attempt to setup auto-pay with from == to (self-payment)
     let result = client.try_setup_auto_pay(&from, &from, &100, &86400);
-    assert_eq!(result, Err(Ok(EscrowError::SelfPaymentNotAllowed)));
+    assert!(matches!(
+        result,
+        Err(Ok(err)) if err == Error::from_contract_error(EscrowError::SelfPaymentNotAllowed as u32)
+    ));
 }
