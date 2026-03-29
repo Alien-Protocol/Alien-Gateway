@@ -307,6 +307,16 @@ fn test_claim_not_winner_fails() {
 }
 
 #[test]
+#[should_panic(expected = "Error(Contract, #9)")]
+fn test_create_auction_past_end_time_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, seller, asset) = setup(&env);
+    env.ledger().set_timestamp(2000);
+    client.create_auction(&1, &seller, &asset, &100, &1000u64);
+}
+
+#[test]
 #[should_panic(expected = "Error(Contract, #8)")]
 fn test_create_duplicate_auction_fails() {
     let env = Env::default();
