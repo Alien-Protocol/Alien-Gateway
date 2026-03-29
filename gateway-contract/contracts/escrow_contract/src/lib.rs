@@ -131,10 +131,7 @@ impl EscrowContract {
             panic_with_error!(&env, EscrowError::InvalidAmount);
         }
 
-        let config = read_vault_config(&env, &commitment)
-            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
-        let mut state = read_vault_state(&env, &commitment)
-            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+        let (config, mut state) = require_vault(&env, &commitment);
 
         config.owner.require_auth();
 
@@ -181,10 +178,7 @@ impl EscrowContract {
             panic_with_error!(&env, EscrowError::InvalidAmount);
         }
 
-        let config = read_vault_config(&env, &commitment)
-            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
-        let mut state = read_vault_state(&env, &commitment)
-            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+        let (config, mut state) = require_vault(&env, &commitment);
 
         config.owner.require_auth();
 
@@ -252,9 +246,8 @@ impl EscrowContract {
             return Err(EscrowError::PastReleaseTime);
         }
 
-        // 2. Read Vault (config + state separately)
-        let config = read_vault_config(&env, &from).ok_or(EscrowError::VaultNotFound)?;
-        let mut state = read_vault_state(&env, &from).ok_or(EscrowError::VaultNotFound)?;
+        // 2. Read Vault (config + state with helper)
+        let (config, mut state) = require_vault_result(&env, &from)?;
 
         // 3. Authenticate caller as owner of from vault
         // Host-level authentication. Panics with host error if unauthorized.
@@ -400,16 +393,11 @@ impl EscrowContract {
     /// ### Errors
     /// - `VaultNotFound`: If no vault exists for `commitment`.
     pub fn cancel_vault(env: Env, commitment: BytesN<32>) {
-        // 1) Load vault config + authenticate as owner.
-        let config = read_vault_config(&env, &commitment)
-            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+        // 1) Load vault config + state with helper, and authenticate as owner.
+        let (config, mut state) = require_vault(&env, &commitment);
         config.owner.require_auth();
 
-        // 2) Load vault mutable state (panic if vault doesn't exist).
-        let mut state = read_vault_state(&env, &commitment)
-            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
-
-        // 3) Refund any remaining balance.
+        // 2) Refund any remaining balance.
         let refunded_amount = if state.balance > 0 {
             let token_client = token::Client::new(&env, &config.token);
             token_client.transfer(
@@ -422,12 +410,12 @@ impl EscrowContract {
             0
         };
 
-        // 4) Mark inactive and zero balance.
+        // 3) Mark inactive and zero balance.
         state.is_active = false;
         state.balance = 0;
         write_vault_state(&env, &commitment, &state);
 
-        // 5) Emit cancellation event.
+        // 4) Emit cancellation event.
         Events::vault_cancel(&env, commitment, refunded_amount);
     }
 
@@ -594,6 +582,29 @@ impl EscrowContract {
     pub fn get_auto_pay(env: Env, from: BytesN<32>, rule_id: u32) -> Option<AutoPay> {
         read_auto_pay(&env, &from, rule_id)
     }
+}
+
+/// Helper function to read both VaultConfig and VaultState with unified error handling.
+///
+/// Returns both the config and state, or panics with `VaultNotFound` if either is missing.
+fn require_vault(env: &Env, commitment: &BytesN<32>) -> (VaultConfig, VaultState) {
+    let config = read_vault_config(env, commitment)
+        .unwrap_or_else(|| panic_with_error!(env, EscrowError::VaultNotFound));
+    let state = read_vault_state(env, commitment)
+        .unwrap_or_else(|| panic_with_error!(env, EscrowError::VaultNotFound));
+    (config, state)
+}
+
+/// Helper function to read both VaultConfig and VaultState with Result error handling.
+///
+/// Returns both the config and state, or `VaultNotFound` if either is missing.
+fn require_vault_result(
+    env: &Env,
+    commitment: &BytesN<32>,
+) -> Result<(VaultConfig, VaultState), EscrowError> {
+    let config = read_vault_config(env, commitment).ok_or(EscrowError::VaultNotFound)?;
+    let state = read_vault_state(env, commitment).ok_or(EscrowError::VaultNotFound)?;
+    Ok((config, state))
 }
 
 fn resolve(env: &Env, commitment: &BytesN<32>) -> Address {
