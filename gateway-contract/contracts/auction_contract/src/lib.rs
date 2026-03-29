@@ -118,8 +118,8 @@ impl AuctionContract {
         if storage::auction_exists(&env, id) {
             soroban_sdk::panic_with_error!(&env, errors::AuctionError::AuctionNotOpen);
         }
-        if end_time <= env.ledger().timestamp() {
-            soroban_sdk::panic_with_error!(&env, errors::AuctionError::AuctionNotClosed);
+        if min_bid <= 0 {
+            soroban_sdk::panic_with_error!(&env, errors::AuctionError::BidTooLow);
         }
         storage::auction_set_seller(&env, id, &seller);
         storage::auction_set_asset(&env, id, &asset);

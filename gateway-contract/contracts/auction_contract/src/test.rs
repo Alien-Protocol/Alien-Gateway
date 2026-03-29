@@ -395,6 +395,15 @@ fn test_auction_no_bids_close() {
 
 #[test]
 #[should_panic(expected = "Error(Contract, #7)")]
+fn test_create_auction_zero_min_bid_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, seller, asset) = setup(&env);
+    client.create_auction(&1, &seller, &asset, &0, &1000u64);
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #7)")]
 fn test_place_bid_too_low_fails() {
     let env = Env::default();
     env.mock_all_auths();
