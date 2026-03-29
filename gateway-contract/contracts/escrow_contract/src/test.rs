@@ -942,3 +942,26 @@ fn test_cancel_vault_non_owner_panics() {
         }])
         .cancel_vault(&from);
 }
+
+// ─── initialize tests ──────────────────────────────────────────────
+
+#[test]
+fn test_initialize_twice_returns_already_initialized() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let reg_id = env.register(MockRegistrationContract, ());
+    let escrow_id = env.register(EscrowContract, ());
+    let client = EscrowContractClient::new(&env, &escrow_id);
+    let admin = Address::generate(&env);
+
+    // First initialization should succeed
+    client.initialize(&admin, &reg_id);
+
+    // Second initialization should fail with AlreadyInitialized
+    let result = client.try_initialize(&admin, &reg_id);
+    assert!(matches!(
+        result,
+        Err(Ok(err)) if err == Error::from_contract_error(EscrowError::AlreadyInitialized as u32)
+    ));
+}
