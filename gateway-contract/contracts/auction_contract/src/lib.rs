@@ -126,6 +126,7 @@ impl AuctionContract {
         storage::auction_set_min_bid(&env, id, min_bid);
         storage::auction_set_end_time(&env, id, end_time);
         storage::auction_set_status(&env, id, types::AuctionStatus::Open);
+        events::emit_auction_created(&env, &BytesN::from_array(&env, &[0u8; 32]), end_time, min_bid);
     }
 
     pub fn place_bid(env: Env, id: u32, bidder: Address, amount: i128) {

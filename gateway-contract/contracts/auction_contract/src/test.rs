@@ -515,6 +515,21 @@ fn test_claim_twice_fails() {
 }
 
 #[test]
+fn test_create_auction_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, seller, asset) = setup(&env);
+    
+    client.create_auction(&1, &seller, &asset, &100, &1000u64);
+    
+    let events = env.events().all();
+    assert!(events.len() > 0);
+    
+    let event = events.last().unwrap();
+    let (_, topics, data) = event;
+    
+    let event_name = soroban_sdk::Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap();
+    assert_eq!(event_name, soroban_sdk::Symbol::new(&env, "AuctionCreatedEvent"));
 fn test_get_auction_info() {
     let env = Env::default();
     env.mock_all_auths();
