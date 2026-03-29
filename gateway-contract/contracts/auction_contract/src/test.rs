@@ -475,7 +475,7 @@ fn test_get_auction_info() {
     client.create_auction(&1, &seller, &asset, &100, &1000u64);
 
     // Initial state
-    let info1 = client.get_auction_info(&1).unwrap();
+    let info1 = client.get_auction_info(&1).expect("auction should exist");
     assert_eq!(
         info1,
         (
@@ -492,7 +492,9 @@ fn test_get_auction_info() {
 
     // After bid
     client.place_bid(&1, &bidder, &150);
-    let info2 = client.get_auction_info(&1).unwrap();
+    let info2 = client
+        .get_auction_info(&1)
+        .expect("auction should exist after bid");
     assert_eq!(
         info2,
         (
@@ -510,7 +512,9 @@ fn test_get_auction_info() {
     // After close
     env.ledger().set_timestamp(1001);
     client.close_auction_by_id(&1);
-    let info3 = client.get_auction_info(&1).unwrap();
+    let info3 = client
+        .get_auction_info(&1)
+        .expect("auction should exist after close");
     assert_eq!(
         info3,
         (
@@ -527,7 +531,9 @@ fn test_get_auction_info() {
 
     // After claim
     client.claim(&1, &bidder);
-    let info4 = client.get_auction_info(&1).unwrap();
+    let info4 = client
+        .get_auction_info(&1)
+        .expect("auction should exist after claim");
     assert_eq!(
         info4,
         (

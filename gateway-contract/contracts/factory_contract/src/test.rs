@@ -54,20 +54,23 @@ fn deploy_username_stores_record_and_emits_event() {
 
     let events = env.events().all();
 
-    let record = factory.get_username_record(&hash).unwrap();
+    let record = factory
+        .get_username_record(&hash)
+        .expect("record should be stored");
     assert_eq!(record.username_hash, hash);
     assert_eq!(record.owner, owner);
     assert_eq!(record.registered_at, env.ledger().timestamp());
     assert_eq!(record.core_contract, core_contract);
     assert_eq!(events.len(), 1);
 
-    let (event_contract, topics, data) = events.get(0).unwrap();
+    let (event_contract, topics, data) = events.get(0).expect("event should be emitted");
     assert_eq!(event_contract, factory_id);
     assert_eq!(topics.len(), 1);
 
-    let event_name = Symbol::try_from_val(&env, &topics.get(0).unwrap()).unwrap();
+    let event_name = Symbol::try_from_val(&env, &topics.get(0).expect("event topic missing"))
+        .expect("event topic should decode");
     let (event_hash, event_owner, event_registered_at) =
-        <(BytesN<32>, Address, u64)>::try_from_val(&env, &data).unwrap();
+        <(BytesN<32>, Address, u64)>::try_from_val(&env, &data).expect("event data should decode");
 
     assert_eq!(event_name, USERNAME_DEPLOYED);
     assert_eq!(event_hash, hash);
@@ -197,7 +200,9 @@ fn test_deploy_username_success() {
     }]);
 
     factory.deploy_username(&hash, &owner);
-    let record = factory.get_username_record(&hash).unwrap();
+    let record = factory
+        .get_username_record(&hash)
+        .expect("record should be stored");
     assert_eq!(record.owner, owner);
 }
 
@@ -304,7 +309,7 @@ fn get_username_record_extends_ttl_on_read() {
 
     // Advance the ledger so the remaining TTL drops below the lifetime threshold.
     env.ledger().with_mut(|l| {
-        l.sequence_number += (PERSISTENT_BUMP_AMOUNT - PERSISTENT_LIFETIME_THRESHOLD + 1) as u32;
+        l.sequence_number += PERSISTENT_BUMP_AMOUNT - PERSISTENT_LIFETIME_THRESHOLD + 1;
     });
 
     // Reading the record should bump the TTL back to PERSISTENT_BUMP_AMOUNT.
