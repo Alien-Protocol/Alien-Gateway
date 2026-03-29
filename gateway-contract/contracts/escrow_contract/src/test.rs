@@ -554,6 +554,46 @@ fn test_execute_scheduled_not_found_panics() {
     ));
 }
 
+#[test]
+fn test_execute_scheduled_requires_full_source_vault() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    let payment_id = 7u32;
+    let payment = ScheduledPayment {
+        from: from.clone(),
+        to: to.clone(),
+        token: token.clone(),
+        amount: 100,
+        release_at: 1500,
+        executed: false,
+    };
+    let state = VaultState {
+        balance: 1_000,
+        is_active: true,
+    };
+
+    create_vault(&env, &contract_id, &to, &Address::generate(&env), &token, 0);
+
+    env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .set(&DataKey::VaultState(from.clone()), &state);
+        env.storage()
+            .persistent()
+            .set(&DataKey::ScheduledPayment(payment_id), &payment);
+    });
+
+    env.ledger().set_timestamp(2000);
+
+    let result = client.try_execute_scheduled(&payment_id);
+    assert!(matches!(
+        result,
+        Err(Ok(err)) if err == Error::from_contract_error(EscrowError::VaultNotFound as u32)
+    ));
+}
+
 // ---------------------------------------------------------------------------
 // deposit tests
 // ---------------------------------------------------------------------------
@@ -1074,6 +1114,43 @@ fn test_trigger_auto_pay_inactive_vault_returns_vault_inactive() {
     ));
 }
 
+#[test]
+fn test_trigger_auto_pay_requires_full_source_vault() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    let state = VaultState {
+        balance: 1000,
+        is_active: true,
+    };
+    let auto_pay = AutoPay {
+        from: from.clone(),
+        to: to.clone(),
+        token: token.clone(),
+        amount: 100,
+        interval: 1,
+        last_paid: 0,
+    };
+
+    env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .set(&DataKey::VaultState(from.clone()), &state);
+        env.storage()
+            .persistent()
+            .set(&DataKey::AutoPay(from.clone(), 0u64), &auto_pay);
+    });
+
+    env.ledger().set_timestamp(1000);
+
+    let result = client.try_trigger_auto_pay(&from, &0);
+    assert!(matches!(
+        result,
+        Err(Ok(err)) if err == Error::from_contract_error(EscrowError::VaultNotFound as u32)
+    ));
+}
+
 // ─── cancel_vault tests ──────────────────────────────────────────────
 
 #[test]
@@ -1245,6 +1322,28 @@ fn test_get_auto_pay_returns_rule_after_setup() {
     assert_eq!(rule.amount, amount);
     assert_eq!(rule.interval, interval);
     assert_eq!(rule.last_paid, 0);
+}
+
+#[test]
+fn test_setup_auto_pay_requires_full_source_vault() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    let config = VaultConfig {
+        owner: Address::generate(&env),
+        token: token.clone(),
+        created_at: 0,
+    };
+
+    env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .set(&DataKey::VaultConfig(from.clone()), &config);
+    });
+
+    let result = client.try_setup_auto_pay(&from, &to, &250, &86_400);
+    assert_eq!(result, Err(Ok(EscrowError::VaultNotFound)));
 }
 
 /// Verifies that `get_auto_pay` returns `None` for a rule_id that was never

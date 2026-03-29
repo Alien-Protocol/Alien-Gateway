@@ -315,28 +315,6 @@ impl EscrowContract {
             env.current_contract_address()
         );
 
-        // Print payment info and check vault state before reading
-        let key = crate::types::DataKey::ScheduledPayment(payment_id);
-        let payment: crate::types::ScheduledPayment =
-            env.storage().persistent().get(&key).unwrap_or_else(|| {
-                soroban_sdk::log!(
-                    &env,
-                    "[CONTRACT DEBUG] execute_scheduled: payment_id {} not found",
-                    payment_id
-                );
-                panic_with_error!(&env, crate::errors::EscrowError::PaymentNotFound)
-            });
-        soroban_sdk::log!(
-            &env,
-            "[CONTRACT DEBUG] execute_scheduled: about to read_vault_state for commitment {:?}",
-            payment.from
-        );
-        let vault_state_exists = crate::storage::read_vault_state(&env, &payment.from).is_some();
-        soroban_sdk::log!(
-            &env,
-            "[CONTRACT DEBUG] execute_scheduled: vault_state_exists = {}",
-            vault_state_exists
-        );
         let key = DataKey::ScheduledPayment(payment_id);
         let mut payment: ScheduledPayment = env
             .storage()
@@ -353,12 +331,7 @@ impl EscrowContract {
         }
 
         // Reject execution if the source vault was cancelled.
-        soroban_sdk::log!(&env, "[CONTRACT DEBUG] execute_scheduled: about to read_vault_state (source) for commitment {:?}", payment.from);
-        let state = read_vault_state(&env, &payment.from)
-            .unwrap_or_else(|| {
-                soroban_sdk::log!(&env, "[CONTRACT DEBUG] execute_scheduled: read_vault_state (source) FAILED for commitment {:?}", payment.from);
-                panic_with_error!(&env, EscrowError::VaultNotFound)
-            });
+        let (_, state) = require_vault(&env, &payment.from);
         if !state.is_active {
             panic_with_error!(&env, EscrowError::VaultInactive);
         }
@@ -371,10 +344,6 @@ impl EscrowContract {
         let recipient = resolve(&env, &payment.to);
         let token_client = token::Client::new(&env, &payment.token);
         token_client.transfer(&env.current_contract_address(), &recipient, &payment.amount);
-
-        // After payment, check vault state again for debugging
-        soroban_sdk::log!(&env, "[CONTRACT DEBUG] execute_scheduled: after payment, about to read_vault_state (source) for commitment {:?}", payment.from);
-        let _ = read_vault_state(&env, &payment.from);
 
         payment.executed = true;
         write_scheduled_payment(&env, payment_id, &payment);
@@ -454,8 +423,8 @@ impl EscrowContract {
             return Err(EscrowError::InvalidInterval);
         }
 
-        // 2. Read Vault config to verify it exists and get the token
-        let config = read_vault_config(&env, &from).ok_or(EscrowError::VaultNotFound)?;
+        // 2. Read vault config + state so the vault must be fully present.
+        let (config, _) = require_vault_result(&env, &from)?;
 
         // 3. Authenticate caller as owner of from vault
         config.owner.require_auth();
@@ -508,9 +477,8 @@ impl EscrowContract {
             panic_with_error!(&env, EscrowError::IntervalNotElapsed);
         }
 
-        // 3. Load vault state, verify the vault is active before checking balance.
-        let mut state = read_vault_state(&env, &from)
-            .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
+        // 3. Load vault config + state so the vault must be fully present.
+        let (_, mut state) = require_vault(&env, &from);
 
         // Reject if the source vault was cancelled.
         if !state.is_active {
