@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use crate::errors::EscrowError;
-use crate::types::{DataKey, ScheduledPayment, VaultConfig, VaultState};
+use crate::types::{AutoPay, DataKey, ScheduledPayment, VaultConfig, VaultState};
 use crate::EscrowContract;
 use crate::EscrowContractClient;
 use soroban_sdk::testutils::{Address as _, Events as _, Ledger, MockAuth, MockAuthInvoke};
@@ -974,6 +974,52 @@ fn test_auto_pay_multiple_vaults_no_interference() {
     });
 }
 
+#[test]
+fn test_trigger_auto_pay_inactive_vault_returns_vault_inactive() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    let owner = Address::generate(&env);
+    let config = VaultConfig {
+        owner: owner.clone(),
+        token: token.clone(),
+        created_at: 0,
+    };
+    let state = VaultState {
+        balance: 1000,
+        is_active: false,
+    };
+    let auto_pay = AutoPay {
+        from: from.clone(),
+        to: to.clone(),
+        token: token.clone(),
+        amount: 100,
+        interval: 1,
+        last_paid: 0,
+    };
+
+    env.as_contract(&contract_id, || {
+        env.storage()
+            .persistent()
+            .set(&DataKey::VaultConfig(from.clone()), &config);
+        env.storage()
+            .persistent()
+            .set(&DataKey::VaultState(from.clone()), &state);
+        env.storage()
+            .persistent()
+            .set(&DataKey::AutoPay(from.clone(), 0u64), &auto_pay);
+    });
+
+    env.ledger().set_timestamp(1000);
+
+    let result = client.try_trigger_auto_pay(&from, &0);
+    assert!(matches!(
+        result,
+        Err(Ok(err)) if err == Error::from_contract_error(EscrowError::VaultInactive as u32)
+    ));
+}
+
 // ─── cancel_vault tests ──────────────────────────────────────────────
 
 #[test]
@@ -1104,4 +1150,65 @@ fn test_cancel_vault_non_owner_panics() {
             },
         }])
         .cancel_vault(&from);
+}
+
+// ─── get_auto_pay tests ──────────────────────────────────────────────
+
+/// Verifies that `get_auto_pay` returns `Some(AutoPay)` with the correct fields
+/// immediately after `setup_auto_pay` has been called.
+#[test]
+fn test_get_auto_pay_returns_rule_after_setup() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+
+    let amount = 250i128;
+    let interval = 86_400u64; // 1 day in seconds
+
+    // Create a funded vault so setup_auto_pay can verify it exists.
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+
+    // Register the auto-pay rule and capture the assigned rule_id.
+    let rule_id = client.setup_auto_pay(&from, &to, &amount, &interval);
+
+    // get_auto_pay must return Some with matching fields.
+    let result = client.get_auto_pay(&from, &rule_id);
+    assert!(result.is_some(), "expected Some(AutoPay) after setup_auto_pay");
+
+    let rule = result.unwrap();
+    assert_eq!(rule.from, from);
+    assert_eq!(rule.to, to);
+    assert_eq!(rule.amount, amount);
+    assert_eq!(rule.interval, interval);
+    assert_eq!(rule.last_paid, 0);
+}
+
+/// Verifies that `get_auto_pay` returns `None` for a rule_id that was never
+/// created, confirming the function does not fabricate data.
+#[test]
+fn test_get_auto_pay_returns_none_for_unknown_rule() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (contract_id, client, token, _token_admin, from, _to) = setup_test(&env);
+
+    // Create a vault but deliberately do NOT call setup_auto_pay.
+    create_vault(
+        &env,
+        &contract_id,
+        &from,
+        &Address::generate(&env),
+        &token,
+        1_000,
+    );
+
+    // rule_id 999 was never registered — must return None.
+    let result = client.get_auto_pay(&from, &999u32);
+    assert!(result.is_none(), "expected None for an unregistered rule_id");
 }

@@ -18,6 +18,8 @@ pub enum DataKey {
     SmtRoot,
     /// Key for the primary Stellar address linked to a username hash.
     StellarAddress(BytesN<32>),
+    /// Key for the list of all Stellar addresses linked to a username hash.
+    StellarAddresses(BytesN<32>),
     /// Key for the user's selected privacy mode.
     PrivacyMode(BytesN<32>),
     /// Key for the contract owner set during initialization (instance storage).

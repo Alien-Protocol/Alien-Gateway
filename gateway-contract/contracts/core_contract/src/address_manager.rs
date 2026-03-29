@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, panic_with_error, Address, Bytes, BytesN, Env};
+use soroban_sdk::{contracttype, panic_with_error, Address, Bytes, BytesN, Env, Vec};
 
 use crate::errors::{ChainAddressError, CoreError};
 use crate::events::{shielded_add_event, CHAIN_ADD, CHAIN_REM};
@@ -168,10 +168,34 @@ impl AddressManager {
             panic_with_error!(&env, CoreError::NotFound);
         }
 
+        let mut linked_addresses: Vec<Address> = env
+            .storage()
+            .persistent()
+            .get(&storage::DataKey::StellarAddresses(username_hash.clone()))
+            .unwrap_or_else(|| Vec::new(&env));
+        linked_addresses.push_back(stellar_address.clone());
+        env.storage().persistent().set(
+            &storage::DataKey::StellarAddresses(username_hash.clone()),
+            &linked_addresses,
+        );
+
         env.storage().persistent().set(
             &storage::DataKey::StellarAddress(username_hash),
             &stellar_address,
         );
+    }
+
+    pub fn get_stellar_addresses(env: Env, username_hash: BytesN<32>) -> Vec<Address> {
+        if Registration::get_owner(env.clone(), username_hash.clone()).is_none() {
+            panic_with_error!(&env, CoreError::NotFound);
+        }
+
+        env.storage()
+            .persistent()
+            .get::<storage::DataKey, Vec<Address>>(&storage::DataKey::StellarAddresses(
+                username_hash,
+            ))
+            .unwrap_or_else(|| Vec::new(&env))
     }
 
     /// Resolves a commitment to its linked Stellar address.

@@ -520,7 +520,7 @@ impl EscrowContract {
             panic_with_error!(&env, EscrowError::IntervalNotElapsed);
         }
 
-        // 3. Load vault state and check balance
+        // 3. Load vault state, verify the vault is active before checking balance.
         let mut state = read_vault_state(&env, &from)
             .unwrap_or_else(|| panic_with_error!(&env, EscrowError::VaultNotFound));
 
@@ -576,6 +576,23 @@ impl EscrowContract {
     /// - `Some(balance)` with the vault's current available balance.
     pub fn get_balance(env: Env, commitment: BytesN<32>) -> Option<i128> {
         read_vault_state(&env, &commitment).map(|state| state.balance)
+    }
+
+    /// Returns the auto-pay rule for a given source vault and rule ID.
+    ///
+    /// This is a read-only getter with no side effects and no authentication
+    /// requirement. It performs a single O(1) persistent-storage lookup using
+    /// the composite key `(from, rule_id)`.
+    ///
+    /// ### Arguments
+    /// - `from`: The `BytesN<32>` commitment ID of the source vault that owns the rule.
+    /// - `rule_id`: The unique identifier of the auto-pay rule.
+    ///
+    /// ### Returns
+    /// - `Some(AutoPay)` if the rule exists (i.e. after `setup_auto_pay`).
+    /// - `None` if the rule does not exist or has been cancelled.
+    pub fn get_auto_pay(env: Env, from: BytesN<32>, rule_id: u32) -> Option<AutoPay> {
+        read_auto_pay(&env, &from, rule_id)
     }
 }
 

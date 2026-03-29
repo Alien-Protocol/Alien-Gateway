@@ -73,6 +73,7 @@ impl Contract {
 
     /// Adds a Stellar address for a commitment. See [address_manager::AddressManager::add_stellar_address].
     pub fn add_stellar_address(e: Env, c: Address, h: BytesN<32>, a: Address) { AddressManager::add_stellar_address(e, c, h, a); }
+    pub fn get_stellar_addresses(e: Env, h: BytesN<32>) -> soroban_sdk::Vec<Address> { AddressManager::get_stellar_addresses(e, h) }
 
     /// Resolves a commitment to its Stellar address. See [address_manager::AddressManager::resolve_stellar].
     pub fn resolve_stellar(e: Env, h: BytesN<32>) -> Address { AddressManager::resolve_stellar(e, h) }

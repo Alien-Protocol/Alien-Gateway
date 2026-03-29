@@ -438,6 +438,47 @@ fn test_add_stellar_address_overwrites_previous() {
 }
 
 #[test]
+fn test_get_stellar_addresses_initially_empty() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 55);
+
+    client.register(&owner, &hash);
+
+    let addresses = client.get_stellar_addresses(&hash);
+    assert_eq!(addresses.len(), 0);
+}
+
+#[test]
+fn test_get_stellar_addresses_after_multiple_adds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 56);
+    let addr_one = Address::generate(&env);
+    let addr_two = Address::generate(&env);
+    let addr_three = Address::generate(&env);
+
+    client.register(&owner, &hash);
+    client.add_stellar_address(&owner, &hash, &addr_one);
+    client.add_stellar_address(&owner, &hash, &addr_two);
+    client.add_stellar_address(&owner, &hash, &addr_three);
+
+    let addresses = client.get_stellar_addresses(&hash);
+    let mut expected = Vec::new(&env);
+    expected.push_back(addr_one);
+    expected.push_back(addr_two);
+    expected.push_back(addr_three);
+
+    assert_eq!(addresses, expected);
+}
+
+#[test]
 #[should_panic(expected = "Error(Contract, #1)")]
 fn test_resolve_stellar_not_found_for_unregistered_hash() {
     let env = Env::default();
