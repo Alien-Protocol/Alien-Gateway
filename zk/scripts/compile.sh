@@ -69,15 +69,6 @@ for entry in "${CIRCUITS[@]}"; do
   [ -f "$OUT_DIR/$NAME.sym" ] || fail "$NAME - expected normalized sym output"
   [ -f "$WASM_DIR/${NAME}_js/$NAME.wasm" ] || fail "$NAME - expected normalized wasm output"
 
-  CIRCOM_BASENAME="$(basename "$CIRCOM_PATH" .circom)"
-  if [ "$CIRCOM_BASENAME" != "$NAME" ]; then
-    # Normalize output names to expected artifact names.
-    mv "$OUT_DIR/${CIRCOM_BASENAME}.r1cs" "$OUT_DIR/${NAME}.r1cs"
-    mv "$OUT_DIR/${CIRCOM_BASENAME}.sym" "$OUT_DIR/${NAME}.sym"
-    mv "$WASM_DIR/${CIRCOM_BASENAME}_js" "$WASM_DIR/${NAME}_js"
-    mv "$WASM_DIR/${NAME}_js/${CIRCOM_BASENAME}.wasm" "$WASM_DIR/${NAME}_js/${NAME}.wasm"
-  fi
-
   ok "$NAME compiled"
   echo "     |- $OUT_DIR/$NAME.r1cs"
   echo "     |- $OUT_DIR/$NAME.sym"

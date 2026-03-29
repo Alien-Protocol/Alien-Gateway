@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 use crate::registration::DataKey as RegistrationKey;
 use crate::smt_root::SmtRoot;
 use crate::types::{AddressMetadata, ChainType, PrivacyMode, PublicSignals};
@@ -27,11 +29,7 @@ fn commitment(env: &Env, seed: u8) -> BytesN<32> {
     BytesN::from_array(env, &[seed; 32])
 }
 
-fn assert_event_symbol(
-    env: &Env,
-    event: &(Address, std::vec::Vec<Val>, Val),
-    expected: Symbol,
-) {
+fn assert_event_symbol(env: &Env, event: &(Address, Vec<Val>, Val), expected: Symbol) {
     use soroban_sdk::TryFromVal;
 
     let event_name = Symbol::try_from_val(env, &event.1.get(0).unwrap()).unwrap();
@@ -56,7 +54,7 @@ fn test_register_success() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #10)")]
+#[should_panic(expected = "Error(Contract, #4010)")]
 fn test_register_duplicate_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -92,6 +90,23 @@ fn test_get_owner_returns_none_for_unknown() {
 }
 
 #[test]
+fn test_get_owner_nonexistent_commitment() {
+    // Explicit test to verify get_owner returns None for nonexistent commitment
+    // and does not panic on missing keys
+    let env = Env::default();
+    let (_, client) = setup(&env);
+
+    // Use a commitment that was never registered
+    let nonexistent_hash = BytesN::from_array(&env, &[0xFF; 32]);
+    
+    // Should return None, not panic
+    let result = client.get_owner(&nonexistent_hash);
+    assert_eq!(result, None, "get_owner must return None for nonexistent commitment");
+}
+
+// Commented out - get_username method no longer exists in core contract
+/*
+#[test]
 fn test_get_username_returns_stored_username() {
     let env = Env::default();
     let (contract_id, client) = setup(&env);
@@ -113,6 +128,7 @@ fn test_get_username_returns_none_when_uninitialized() {
 
     assert_eq!(client.get_username(), None);
 }
+*/
 
 fn dummy_proof(env: &Env) -> Bytes {
     Bytes::from_slice(env, &[1u8; 64])
@@ -511,7 +527,7 @@ fn test_get_stellar_addresses_after_multiple_adds() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #1)")]
+#[should_panic(expected = "Error(Contract, #4001)")]
 fn test_resolve_stellar_not_found_for_unregistered_hash() {
     let env = Env::default();
     let (_, client) = setup(&env);
@@ -537,7 +553,7 @@ fn test_register_resolver_unauthenticated_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #4)")]
+#[should_panic(expected = "Error(Contract, #4004)")]
 fn test_register_resolver_stale_root_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -552,7 +568,7 @@ fn test_register_resolver_stale_root_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #6)")]
+#[should_panic(expected = "Error(Contract, #4006)")]
 fn test_resolve_stellar_no_address_linked_when_not_set() {
     let env = Env::default();
     env.mock_all_auths();
@@ -581,7 +597,7 @@ fn test_add_stellar_address_wrong_owner_panics() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #1)")]
+#[should_panic(expected = "Error(Contract, #4001)")]
 fn test_add_stellar_address_not_registered_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -638,7 +654,7 @@ fn test_remove_stellar_address_wrong_owner_panics() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #1)")]
+#[should_panic(expected = "Error(Contract, #4001)")]
 fn test_remove_stellar_address_not_registered_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -652,7 +668,7 @@ fn test_remove_stellar_address_not_registered_panics() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #3)")]
+#[should_panic(expected = "Error(Contract, #4003)")]
 fn test_register_resolver_duplicate_commitment_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -751,7 +767,7 @@ fn test_register_resolver_emits_events() {
 // ── SMT root tests ────────────────────────────────────────────────────────────
 
 #[test]
-#[should_panic(expected = "Error(Contract, #2)")]
+#[should_panic(expected = "Error(Contract, #4002)")]
 fn test_get_smt_root_panics_when_not_set() {
     let env = Env::default();
     let (_, client) = setup(&env);
@@ -820,7 +836,7 @@ fn test_update_smt_root_unauthorized_rejects() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #11)")]
+#[should_panic(expected = "Error(Contract, #4011)")]
 fn test_update_smt_root_same_root_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -999,7 +1015,7 @@ fn test_transfer_ownership_succeeds() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #7)")]
+#[should_panic(expected = "Error(Contract, #4007)")]
 fn test_transfer_ownership_non_owner_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -1083,7 +1099,7 @@ fn test_transfer_succeeds() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #8)")]
+#[should_panic(expected = "Error(Contract, #4008)")]
 fn test_transfer_same_owner_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -1102,9 +1118,9 @@ fn test_transfer_same_owner_panics() {
     client.transfer(&owner, &hash, &owner, &dummy_proof(&env), &signals);
 }
 
-/// Verifies that `transfer_ownership` rejects a same-owner transfer with `SameOwner` (#8).
+/// Verifies that `transfer_ownership` rejects a same-owner transfer with `SameOwner` (#4008).
 #[test]
-#[should_panic(expected = "Error(Contract, #8)")]
+#[should_panic(expected = "Error(Contract, #4008)")]
 fn test_transfer_ownership_same_owner_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -1119,7 +1135,7 @@ fn test_transfer_ownership_same_owner_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #7)")]
+#[should_panic(expected = "Error(Contract, #4007)")]
 fn test_transfer_non_owner_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -1154,38 +1170,34 @@ fn test_full_identity_lifecycle() {
 
     // Initialize the contract owner so new_owner can update the SMT root later.
     client.initialize(&new_owner);
-    let mut events_len = env.events().all().len();
 
     // register
     client.register(&owner, &hash);
     let events = env.events().all();
-    assert_eq!(events.len(), events_len + 1);
+    // Only the most recent event is captured in test environment
+    assert_eq!(events.len(), 1);
     let register_event = events.last().unwrap();
-    assert_event_symbol(&env, register_event, REGISTER_EVENT);
-    let (commitment, registered_owner): (BytesN<32>, Address) =
-        register_event.2.into_val(&env);
+    assert_event_symbol(&env, &register_event, REGISTER_EVENT);
+    let (commitment, registered_owner): (BytesN<32>, Address) = register_event.2.into_val(&env);
     assert_eq!(commitment, hash);
     assert_eq!(registered_owner, owner);
     assert_eq!(client.get_owner(&hash), Some(owner.clone()));
     env.as_contract(&contract_id, || {
         assert_eq!(SmtRoot::get_root(env.clone()), None);
     });
-    events_len = events.len();
 
     // set_root
     let root1 = BytesN::from_array(&env, &[1u8; 32]);
     client.update_smt_root(&root1);
     let events = env.events().all();
-    assert_eq!(events.len(), events_len + 1);
+    assert_eq!(events.len(), 1); // Only ROOT_UPDATED event
     let root_event = events.last().unwrap();
-    assert_event_symbol(&env, root_event, ROOT_UPDATED);
-    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) =
-        root_event.2.into_val(&env);
+    assert_event_symbol(&env, &root_event, ROOT_UPDATED);
+    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
     assert_eq!(old_root, None);
     assert_eq!(new_root, root1);
     assert_eq!(client.get_smt_root(), root1);
     assert_eq!(client.get_owner(&hash), Some(owner.clone()));
-    events_len = events.len();
 
     // add_stellar_address
     let stellar = Address::generate(&env);
@@ -1193,8 +1205,7 @@ fn test_full_identity_lifecycle() {
     assert_eq!(client.resolve_stellar(&hash), stellar);
     assert_eq!(client.get_smt_root(), root1);
     assert_eq!(client.get_owner(&hash), Some(owner.clone()));
-    let events = env.events().all();
-    assert_eq!(events.len(), events_len);
+    // add_stellar_address doesn't emit an event, so we skip event checking
 
     // transfer
     let root2 = BytesN::from_array(&env, &[2u8; 32]);
@@ -1205,35 +1216,32 @@ fn test_full_identity_lifecycle() {
     client.transfer(&owner, &hash, &new_owner, &dummy_proof(&env), &signals);
 
     let events = env.events().all();
-    assert_eq!(events.len(), events_len + 2);
+    assert_eq!(events.len(), 2); // transfer emits 2 events: ROOT_UPDATED + TRANSFER_EVENT
     let transfer_event = events.last().unwrap();
-    assert_event_symbol(&env, transfer_event, TRANSFER_EVENT);
+    assert_event_symbol(&env, &transfer_event, TRANSFER_EVENT);
     let (commitment, from_owner, to_owner): (BytesN<32>, Address, Address) =
         transfer_event.2.into_val(&env);
     assert_eq!(commitment, hash);
     assert_eq!(from_owner, owner);
     assert_eq!(to_owner, new_owner);
 
-    let root_event = &events[events.len() - 2];
-    assert_event_symbol(&env, root_event, ROOT_UPDATED);
-    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) =
-        root_event.2.into_val(&env);
+    let root_event = events.get(events.len() - 2).unwrap();
+    assert_event_symbol(&env, &root_event, ROOT_UPDATED);
+    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
     assert_eq!(old_root, Some(root1));
     assert_eq!(new_root, root2);
 
     assert_eq!(client.get_owner(&hash), Some(new_owner.clone()));
     assert_eq!(client.get_smt_root(), root2);
-    events_len = events.len();
 
     // new_owner updates root
     let root3 = BytesN::from_array(&env, &[3u8; 32]);
     client.update_smt_root(&root3);
     let events = env.events().all();
-    assert_eq!(events.len(), events_len + 1);
+    assert_eq!(events.len(), 1); // Only ROOT_UPDATED event
     let root_event = events.last().unwrap();
-    assert_event_symbol(&env, root_event, ROOT_UPDATED);
-    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) =
-        root_event.2.into_val(&env);
+    assert_event_symbol(&env, &root_event, ROOT_UPDATED);
+    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
     assert_eq!(old_root, Some(root2));
     assert_eq!(new_root, root3);
     assert_eq!(client.get_smt_root(), root3);

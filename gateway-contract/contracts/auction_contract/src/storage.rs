@@ -1,5 +1,5 @@
 use crate::types::{AuctionStatus, DataKey};
-use soroban_sdk::{Address, Env, BytesN};
+use soroban_sdk::{Address, BytesN, Env};
 
 /// TTL constants for persistent storage entries.
 /// PERSISTENT_BUMP_AMOUNT: 30 days × 24h × 3600s / 5s per ledger = 518_400 ledgers
@@ -248,4 +248,15 @@ pub fn auction_set_bid_refunded(env: &Env, id: u32, bidder: &Address) {
         PERSISTENT_LIFETIME_THRESHOLD,
         PERSISTENT_BUMP_AMOUNT,
     );
+}
+
+/// Refunds the previous highest bidder when they are outbid.
+/// Records the outbid amount for later withdrawal and emits a refund event.
+pub fn refund_previous_bidder(env: &Env, id: u32) {
+    if let Some(prev_bidder) = auction_get_highest_bidder(env, id) {
+        let highest_bid = auction_get_highest_bid(env, id);
+        auction_set_outbid_amount(env, id, &prev_bidder, highest_bid);
+        let username_hash = auction_get_username_hash(env, id);
+        crate::events::emit_bid_refunded(env, &username_hash, &prev_bidder, highest_bid);
+    }
 }
