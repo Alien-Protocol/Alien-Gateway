@@ -147,7 +147,12 @@ impl AuctionContract {
         if amount < min_bid || amount <= highest_bid {
             soroban_sdk::panic_with_error!(&env, errors::AuctionError::BidTooLow);
         }
-
+        if storage::auction_get_highest_bidder(&env, id)
+            .map(|h| h == bidder)
+            .unwrap_or(false)
+        {
+            soroban_sdk::panic_with_error!(&env, errors::AuctionError::SelfBid);
+        }
         let asset = storage::auction_get_asset(&env, id);
         let token = soroban_sdk::token::Client::new(&env, &asset);
 

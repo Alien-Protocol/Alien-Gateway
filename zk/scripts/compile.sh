@@ -20,7 +20,7 @@ CIRCUITS=(
   "merkle_update|merkle_update.circom"
   "merkle_update_proof|merkle/merkle_update_proof.circom"
   "username_merkle|username_merkle.circom"
-  "username_hash|username_hash.circom"
+  "username_hash|username_hash_main.circom"
 )
 
 # ── Helpers ───────────────────────────────────
@@ -66,6 +66,15 @@ for entry in "${CIRCUITS[@]}"; do
     -o "$WASM_DIR" \
     -l "$NODE_MODULES" \
     || fail "$NAME — wasm compilation failed"
+
+  CIRCOM_BASENAME="$(basename "$CIRCOM_PATH" .circom)"
+  if [ "$CIRCOM_BASENAME" != "$NAME" ]; then
+    # Normalize output names to expected artifact names.
+    mv "$OUT_DIR/${CIRCOM_BASENAME}.r1cs" "$OUT_DIR/${NAME}.r1cs"
+    mv "$OUT_DIR/${CIRCOM_BASENAME}.sym" "$OUT_DIR/${NAME}.sym"
+    mv "$WASM_DIR/${CIRCOM_BASENAME}_js" "$WASM_DIR/${NAME}_js"
+    mv "$WASM_DIR/${NAME}_js/${CIRCOM_BASENAME}.wasm" "$WASM_DIR/${NAME}_js/${NAME}.wasm"
+  fi
 
   ok "$NAME compiled"
   echo "     ├── $OUT_DIR/$NAME.r1cs"
