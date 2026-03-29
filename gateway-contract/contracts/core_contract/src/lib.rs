@@ -62,6 +62,9 @@ impl Contract {
     /// Gets the owner of a commitment. See [registration::Registration::get_owner].
     pub fn get_owner(e: Env, h: BytesN<32>) -> Option<Address> { Registration::get_owner(e, h) }
 
+    /// Gets the registration ledger timestamp for a commitment. See [registration::Registration::get_created_at].
+    pub fn get_created_at(e: Env, h: BytesN<32>) -> Option<u64> { Registration::get_created_at(e, h) }
+
     /// Adds a blockchain address for a commitment. See [address_manager::AddressManager::add_chain_address].
     pub fn add_chain_address(e: Env, c: Address, h: BytesN<32>, t: ChainType, a: Bytes) { AddressManager::add_chain_address(e, c, h, t, a); }
 

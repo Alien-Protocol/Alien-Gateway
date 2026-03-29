@@ -26,6 +26,8 @@ pub enum DataKey {
     Owner,
     /// Key for a shielded address commitment, indexed by username hash.
     ShieldedAddress(BytesN<32>),
+    /// Key for the ledger timestamp at which a commitment was first registered.
+    CreatedAt(BytesN<32>),
 }
 
 pub fn set_privacy_mode(env: &Env, username_hash: &BytesN<32>, mode: &PrivacyMode) {
@@ -77,4 +79,20 @@ pub fn has_shielded_address(env: &Env, username_hash: &BytesN<32>) -> bool {
     env.storage()
         .persistent()
         .has(&DataKey::ShieldedAddress(username_hash.clone()))
+}
+
+pub fn set_created_at(env: &Env, username_hash: &BytesN<32>, timestamp: u64) {
+    let key = DataKey::CreatedAt(username_hash.clone());
+    env.storage().persistent().set(&key, &timestamp);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
+}
+
+pub fn get_created_at(env: &Env, username_hash: &BytesN<32>) -> Option<u64> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::CreatedAt(username_hash.clone()))
 }

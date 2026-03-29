@@ -31,6 +31,8 @@ pub enum AuctionKey {
     BidRefunded(u32, Address),
     Status(u32),
     Claimed(u32),
+    OutbidAmount(u32, Address),
+    BidRefunded(u32, Address),
 }
 
 #[contracttype]
