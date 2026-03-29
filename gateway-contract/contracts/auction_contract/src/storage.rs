@@ -232,4 +232,3 @@ pub fn auction_set_bid_refunded(env: &Env, id: u32, bidder: &Address) {
         PERSISTENT_BUMP_AMOUNT,
     );
 }
-

@@ -1,5 +1,5 @@
 use crate::errors::EscrowError;
-use crate::types::{DataKey, LegacyVault, ScheduledPayment, VaultConfig, VaultState};
+use crate::types::{AutoPay, DataKey, LegacyVault, ScheduledPayment, VaultConfig, VaultState};
 use crate::EscrowContract;
 use crate::EscrowContractClient;
 use soroban_sdk::testutils::{Address as _, Events as _, Ledger, MockAuth, MockAuthInvoke};
@@ -133,7 +133,6 @@ fn test_legacy_vault_key_fallback_and_migration() {
 
         let state: VaultState = env
             .storage()
-<<<<<<< HEAD
             .persistent()
             .get(&DataKey::VaultState(from.clone()))
             .unwrap();
@@ -143,17 +142,6 @@ fn test_legacy_vault_key_fallback_and_migration() {
         let legacy: LegacyVault = env
             .storage()
             .persistent()
-=======
-            .persistent()
-            .get(&DataKey::VaultState(from.clone()))
-            .unwrap();
-        assert_eq!(state.balance, 1200);
-        assert!(state.is_active);
-
-        let legacy: LegacyVault = env
-            .storage()
-            .persistent()
->>>>>>> 78811b4df36805826a287ecbd64fac01be5a1c96
             .get(&DataKey::Vault(from.clone()))
             .unwrap();
         assert_eq!(legacy.owner, owner);
@@ -1246,7 +1234,10 @@ fn test_get_auto_pay_returns_rule_after_setup() {
 
     // get_auto_pay must return Some with matching fields.
     let result = client.get_auto_pay(&from, &rule_id);
-    assert!(result.is_some(), "expected Some(AutoPay) after setup_auto_pay");
+    assert!(
+        result.is_some(),
+        "expected Some(AutoPay) after setup_auto_pay"
+    );
 
     let rule = result.unwrap();
     assert_eq!(rule.from, from);
@@ -1276,5 +1267,8 @@ fn test_get_auto_pay_returns_none_for_unknown_rule() {
 
     // rule_id 999 was never registered — must return None.
     let result = client.get_auto_pay(&from, &999u32);
-    assert!(result.is_none(), "expected None for an unregistered rule_id");
+    assert!(
+        result.is_none(),
+        "expected None for an unregistered rule_id"
+    );
 }
