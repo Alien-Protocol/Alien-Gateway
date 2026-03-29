@@ -1465,7 +1465,7 @@ fn test_cancel_auto_pay_success() {
 fn test_cancel_auto_pay_then_trigger_panics_with_not_found() {
     let env = Env::default();
     env.mock_all_auths();
-let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
+    let (contract_id, client, token, _token_admin, from, to) = setup_test(&env);
     let owner = Address::generate(&env);
     create_vault(&env, &contract_id, &from, &owner, &token, 1_000);
 

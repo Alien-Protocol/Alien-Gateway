@@ -1,5 +1,5 @@
 use crate::types::{AuctionStatus, DataKey};
-use soroban_sdk::{Address, Env, BytesN};
+use soroban_sdk::{Address, BytesN, Env};
 
 /// TTL constants for persistent storage entries.
 /// PERSISTENT_BUMP_AMOUNT: 30 days × 24h × 3600s / 5s per ledger = 518_400 ledgers

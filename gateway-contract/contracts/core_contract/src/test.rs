@@ -27,11 +27,7 @@ fn commitment(env: &Env, seed: u8) -> BytesN<32> {
     BytesN::from_array(env, &[seed; 32])
 }
 
-fn assert_event_symbol(
-    env: &Env,
-    event: &(Address, std::vec::Vec<Val>, Val),
-    expected: Symbol,
-) {
+fn assert_event_symbol(env: &Env, event: &(Address, std::vec::Vec<Val>, Val), expected: Symbol) {
     use soroban_sdk::TryFromVal;
 
     let event_name = Symbol::try_from_val(env, &event.1.get(0).unwrap()).unwrap();
@@ -1162,8 +1158,7 @@ fn test_full_identity_lifecycle() {
     assert_eq!(events.len(), events_len + 1);
     let register_event = events.last().unwrap();
     assert_event_symbol(&env, register_event, REGISTER_EVENT);
-    let (commitment, registered_owner): (BytesN<32>, Address) =
-        register_event.2.into_val(&env);
+    let (commitment, registered_owner): (BytesN<32>, Address) = register_event.2.into_val(&env);
     assert_eq!(commitment, hash);
     assert_eq!(registered_owner, owner);
     assert_eq!(client.get_owner(&hash), Some(owner.clone()));
@@ -1179,8 +1174,7 @@ fn test_full_identity_lifecycle() {
     assert_eq!(events.len(), events_len + 1);
     let root_event = events.last().unwrap();
     assert_event_symbol(&env, root_event, ROOT_UPDATED);
-    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) =
-        root_event.2.into_val(&env);
+    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
     assert_eq!(old_root, None);
     assert_eq!(new_root, root1);
     assert_eq!(client.get_smt_root(), root1);
@@ -1216,8 +1210,7 @@ fn test_full_identity_lifecycle() {
 
     let root_event = &events[events.len() - 2];
     assert_event_symbol(&env, root_event, ROOT_UPDATED);
-    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) =
-        root_event.2.into_val(&env);
+    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
     assert_eq!(old_root, Some(root1));
     assert_eq!(new_root, root2);
 
@@ -1232,8 +1225,7 @@ fn test_full_identity_lifecycle() {
     assert_eq!(events.len(), events_len + 1);
     let root_event = events.last().unwrap();
     assert_event_symbol(&env, root_event, ROOT_UPDATED);
-    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) =
-        root_event.2.into_val(&env);
+    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
     assert_eq!(old_root, Some(root2));
     assert_eq!(new_root, root3);
     assert_eq!(client.get_smt_root(), root3);

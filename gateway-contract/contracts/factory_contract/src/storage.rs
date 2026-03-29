@@ -8,7 +8,6 @@ pub(crate) const PERSISTENT_BUMP_AMOUNT: u32 = 518_400;
 /// Lifetime threshold: ~7 days — entries are extended when remaining TTL drops below this.
 pub(crate) const PERSISTENT_LIFETIME_THRESHOLD: u32 = 120_960;
 
-
 /// Persists the auction contract address in instance storage.
 pub fn set_auction_contract(env: &Env, auction_contract: &Address) {
     env.storage()
