@@ -143,7 +143,10 @@ fn e2e_escrow_deposit_schedule_payment() {
         escrow_contract::storage::read_vault_state(&env, &hash)
     });
     assert_eq!(
-        state.as_ref().unwrap().balance,
+        state
+            .as_ref()
+            .expect("vault state should exist after payment")
+            .balance,
         1000,
         "Vault balance should be 1000 after deposit"
     );
@@ -177,14 +180,17 @@ fn e2e_escrow_deposit_schedule_payment() {
             500,
             release_at,
         )
-        .unwrap()
+        .expect("scheduled payment should be stored")
     });
     // Assert vault state after scheduling payment (should be 500)
     let state: Option<VaultState> = env.as_contract(&escrow_id, || {
         escrow_contract::storage::read_vault_state(&env, &hash)
     });
     assert_eq!(
-        state.as_ref().unwrap().balance,
+        state
+            .as_ref()
+            .expect("vault state should exist after execution")
+            .balance,
         500,
         "Vault balance should be 500 after scheduling payment"
     );
@@ -207,12 +213,12 @@ fn e2e_escrow_deposit_schedule_payment() {
             "[TEST DEBUG] execute_scheduled: contract address = {:?}",
             env.current_contract_address()
         );
-        EscrowContract::execute_scheduled(env.clone(), payment_id);
+        let _ = EscrowContract::execute_scheduled(env.clone(), payment_id);
     });
 
     // Assert vault state updated (balance should be 500)
     let state: VaultState = env.as_contract(&escrow_id, || {
-        escrow_contract::storage::read_vault_state(&env, &hash).unwrap()
+        escrow_contract::storage::read_vault_state(&env, &hash).expect("vault state should exist")
     });
     assert_eq!(state.balance, 500);
 }

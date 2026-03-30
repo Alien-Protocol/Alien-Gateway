@@ -135,7 +135,7 @@ fn test_legacy_vault_key_fallback_and_migration() {
             .storage()
             .persistent()
             .get(&DataKey::VaultState(from.clone()))
-            .unwrap();
+            .expect("vault state should exist");
         assert_eq!(state.balance, 1200);
         assert!(state.is_active);
 
@@ -143,7 +143,7 @@ fn test_legacy_vault_key_fallback_and_migration() {
             .storage()
             .persistent()
             .get(&DataKey::Vault(from.clone()))
-            .unwrap();
+            .expect("legacy vault should exist");
         assert_eq!(legacy.owner, owner);
         assert_eq!(legacy.token, token);
     });
@@ -181,7 +181,7 @@ fn test_get_scheduled_payment_returns_all_fields_after_schedule() {
         "expected Some(ScheduledPayment) for a known payment_id"
     );
 
-    let payment = result.unwrap();
+    let payment = result.expect("scheduled payment should exist");
     assert_eq!(payment.from, from);
     assert_eq!(payment.to, to);
     assert_eq!(payment.amount, amount);
@@ -229,7 +229,7 @@ fn test_schedule_payment_success() {
             .storage()
             .persistent()
             .get(&DataKey::VaultState(from.clone()))
-            .unwrap();
+            .expect("vault state should exist");
         assert_eq!(state.balance, initial_balance - amount);
 
         // Verify VaultConfig is unmodified after payment scheduling
@@ -237,7 +237,7 @@ fn test_schedule_payment_success() {
             .storage()
             .persistent()
             .get(&DataKey::VaultConfig(from.clone()))
-            .unwrap();
+            .expect("vault config should exist");
         assert_eq!(config.token, token);
 
         // Verify ScheduledPayment stored correctly
@@ -245,7 +245,7 @@ fn test_schedule_payment_success() {
             .storage()
             .persistent()
             .get(&DataKey::ScheduledPayment(payment_id))
-            .unwrap();
+            .expect("scheduled payment should exist");
         assert_eq!(payment.from, from);
         assert_eq!(payment.to, to);
         assert_eq!(payment.amount, amount);
@@ -416,7 +416,7 @@ fn test_execute_scheduled_success() {
             .storage()
             .persistent()
             .get(&DataKey::ScheduledPayment(payment_id))
-            .unwrap();
+            .expect("scheduled payment should exist");
         assert!(payment.executed);
     });
 
@@ -502,7 +502,7 @@ fn test_create_vault_success() {
             .storage()
             .persistent()
             .get(&DataKey::VaultConfig(commitment.clone()))
-            .unwrap();
+            .expect("vault config should exist");
         assert_eq!(config.owner, owner);
         assert_eq!(config.token, token);
 
@@ -511,7 +511,7 @@ fn test_create_vault_success() {
             .storage()
             .persistent()
             .get(&DataKey::VaultState(commitment.clone()))
-            .unwrap();
+            .expect("vault state should exist");
         assert_eq!(state.balance, 0);
         assert!(state.is_active);
     });
@@ -634,7 +634,7 @@ fn test_deposit_success() {
             .storage()
             .persistent()
             .get(&DataKey::VaultState(from.clone()))
-            .unwrap();
+            .expect("vault state should exist");
         assert_eq!(state.balance, initial_balance + deposit_amount);
     });
 
@@ -720,7 +720,7 @@ fn test_withdraw_success() {
             .storage()
             .persistent()
             .get(&DataKey::VaultState(from.clone()))
-            .unwrap();
+            .expect("vault state should exist");
         assert_eq!(state.balance, initial_balance - withdraw_amount);
         assert!(state.is_active);
     });
@@ -898,7 +898,7 @@ fn test_withdraw_success_with_token_transfer() {
             .storage()
             .persistent()
             .get(&DataKey::VaultState(from.clone()))
-            .unwrap();
+            .expect("vault state should exist");
         assert_eq!(state.balance, initial_balance);
     });
 
@@ -909,7 +909,7 @@ fn test_withdraw_success_with_token_transfer() {
             .storage()
             .persistent()
             .get(&DataKey::VaultState(from.clone()))
-            .unwrap();
+            .expect("vault state should exist");
         assert_eq!(state.balance, initial_balance - withdraw_amount);
     });
 
@@ -1009,7 +1009,7 @@ fn test_withdraw_overdraft() {
             .storage()
             .persistent()
             .get(&DataKey::VaultState(from.clone()))
-            .unwrap();
+            .expect("vault state should exist");
         assert_eq!(state.balance, balance);
     });
 }
@@ -1150,7 +1150,7 @@ fn test_cancel_vault_refunds_balance() {
             .storage()
             .persistent()
             .get(&DataKey::VaultState(from.clone()))
-            .unwrap();
+            .expect("vault state should exist");
         assert!(!state.is_active);
         assert_eq!(state.balance, 0);
     });
@@ -1172,7 +1172,7 @@ fn test_cancel_vault_empty_balance() {
             .storage()
             .persistent()
             .get(&DataKey::VaultState(from.clone()))
-            .unwrap();
+            .expect("vault state should exist");
         assert!(!state.is_active);
         assert_eq!(state.balance, 0);
     });
@@ -1347,7 +1347,7 @@ fn test_get_auto_pay_returns_rule_after_setup() {
         "expected Some(AutoPay) after setup_auto_pay"
     );
 
-    let rule = result.unwrap();
+    let rule = result.expect("auto-pay rule should exist");
     assert_eq!(rule.from, from);
     assert_eq!(rule.to, to);
     assert_eq!(rule.amount, amount);
@@ -1610,7 +1610,7 @@ fn test_cancel_auto_pay_does_not_affect_sibling_rules() {
         "rule_b must survive cancellation of rule_a"
     );
     assert_eq!(
-        surviving.unwrap().amount,
+        surviving.expect("surviving payment should exist").amount,
         200,
         "rule_b amount must be unchanged after rule_a cancel"
     );

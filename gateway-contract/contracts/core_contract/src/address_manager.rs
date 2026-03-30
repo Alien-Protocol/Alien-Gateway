@@ -250,7 +250,9 @@ impl AddressManager {
                         .persistent()
                         .remove(&storage::DataKey::StellarAddress(username_hash.clone()));
                 } else {
-                    let last = updated.get(updated.len() - 1).unwrap();
+                    let last = updated
+                        .get(updated.len() - 1)
+                        .expect("updated stellar address list should be non-empty");
                     env.storage().persistent().set(
                         &storage::DataKey::StellarAddress(username_hash.clone()),
                         &last,

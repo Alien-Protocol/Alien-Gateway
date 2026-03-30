@@ -1,5 +1,5 @@
 [package]
-name = "gateway-auction"
+name = "auction_contract"
 version = "0.1.0"
 edition = "2021"
 description = "Simple auction contract for testing BidRefundedEvent emission"

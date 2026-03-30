@@ -98,6 +98,8 @@ pub enum CoreError {
     AlreadyInitialized = 4009,
     /// Commitment is already registered via register().
     AlreadyRegistered = 4010,
+    /// The new SMT root matches the existing on-chain root.
+    RootUnchanged = 4011,
 }
 
 #[contracterror]

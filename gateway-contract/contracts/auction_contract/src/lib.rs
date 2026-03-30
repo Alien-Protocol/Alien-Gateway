@@ -155,3 +155,23 @@ impl AuctionContract {
         ))
     }
 }
+
+/// CRUD helpers for hash-indexed auction storage.
+#[contractimpl]
+impl AuctionContract {
+    pub fn get_auction(env: Env, hash: BytesN<32>) -> Option<types::AuctionState> {
+        storage::get_auction(&env, &hash)
+    }
+
+    pub fn has_auction(env: Env, hash: BytesN<32>) -> bool {
+        storage::has_auction(&env, &hash)
+    }
+
+    pub fn get_bid(env: Env, hash: BytesN<32>, bidder: Address) -> Option<types::Bid> {
+        storage::get_bid(&env, &hash, &bidder)
+    }
+
+    pub fn get_all_bidders(env: Env, hash: BytesN<32>) -> soroban_sdk::Vec<Address> {
+        storage::get_all_bidders(&env, &hash)
+    }
+}

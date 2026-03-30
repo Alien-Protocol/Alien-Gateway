@@ -89,13 +89,13 @@
 
 pub mod address_manager;
 pub mod admin;
+pub mod alien_gateway;
 pub mod errors;
 pub mod events;
 pub mod registration;
 pub mod resolver;
 pub mod smt_root;
 pub mod storage;
-pub mod alien_gateway;
 pub mod transfer;
 pub mod types;
 pub mod zk_verifier;
@@ -107,7 +107,7 @@ use address_manager::AddressManager;
 use admin::Admin;
 use registration::Registration;
 use resolver::Resolver;
-use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env};
+use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Symbol};
 use transfer::Transfer;
 use types::{ChainType, PrivacyMode, PublicSignals};
 
@@ -149,6 +149,9 @@ impl Contract {
 
     /// Gets the owner of a commitment. See [registration::Registration::get_owner].
     pub fn get_owner(e: Env, h: BytesN<32>) -> Option<Address> { Registration::get_owner(e, h) }
+
+    /// Gets the stored username symbol when present.
+    pub fn get_username(e: Env) -> Option<Symbol> { e.storage().instance().get(&alien_gateway::storage::username_key(&e)) }
 
     /// Gets the registration ledger timestamp for a commitment. See [registration::Registration::get_created_at].
     pub fn get_created_at(e: Env, h: BytesN<32>) -> Option<u64> { Registration::get_created_at(e, h) }

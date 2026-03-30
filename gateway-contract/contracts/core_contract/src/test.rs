@@ -27,10 +27,11 @@ fn commitment(env: &Env, seed: u8) -> BytesN<32> {
     BytesN::from_array(env, &[seed; 32])
 }
 
-fn assert_event_symbol(env: &Env, event: &(Address, std::vec::Vec<Val>, Val), expected: Symbol) {
+fn assert_event_symbol(env: &Env, event: &(Address, Vec<Val>, Val), expected: Symbol) {
     use soroban_sdk::TryFromVal;
 
-    let event_name = Symbol::try_from_val(env, &event.1.get(0).unwrap()).unwrap();
+    let event_topic = event.1.get(0).expect("event topic missing");
+    let event_name = Symbol::try_from_val(env, &event_topic).expect("event name should decode");
     assert_eq!(event_name, expected);
 }
 
@@ -94,9 +95,10 @@ fn test_get_username_returns_stored_username() {
     let username = Symbol::new(&env, "alien_user");
 
     env.as_contract(&contract_id, || {
-        env.storage()
-            .instance()
-            .set(&crate::alien_gateway::storage::username_key(&env), &username);
+        env.storage().instance().set(
+            &crate::alien_gateway::storage::username_key(&env),
+            &username,
+        );
     });
 
     assert_eq!(client.get_username(), Some(username));
@@ -610,7 +612,7 @@ fn test_remove_stellar_address_success() {
     // addr_b must be absent from the history list
     let addresses = client.get_stellar_addresses(&hash);
     assert_eq!(addresses.len(), 1);
-    assert_eq!(addresses.get(0).unwrap(), addr_a);
+    assert_eq!(addresses.get(0).expect("first address missing"), addr_a);
 
     // primary falls back to addr_a
     assert_eq!(client.resolve_stellar(&hash), addr_a);
@@ -1040,7 +1042,11 @@ fn test_transfer_succeeds() {
 
     env.as_contract(&contract_id, || {
         let key = RegKey::Commitment(hash.clone());
-        let current_owner: Address = env.storage().persistent().get(&key).unwrap();
+        let current_owner: Address = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .expect("owner should be stored");
 
         if owner != current_owner {
             panic_with_error!(&env, CoreError::Unauthorized);
@@ -1156,8 +1162,8 @@ fn test_full_identity_lifecycle() {
     client.register(&owner, &hash);
     let events = env.events().all();
     assert_eq!(events.len(), events_len + 1);
-    let register_event = events.last().unwrap();
-    assert_event_symbol(&env, register_event, REGISTER_EVENT);
+    let register_event = events.last().expect("register event missing");
+    assert_event_symbol(&env, &register_event, REGISTER_EVENT);
     let (commitment, registered_owner): (BytesN<32>, Address) = register_event.2.into_val(&env);
     assert_eq!(commitment, hash);
     assert_eq!(registered_owner, owner);
@@ -1172,8 +1178,8 @@ fn test_full_identity_lifecycle() {
     client.update_smt_root(&root1);
     let events = env.events().all();
     assert_eq!(events.len(), events_len + 1);
-    let root_event = events.last().unwrap();
-    assert_event_symbol(&env, root_event, ROOT_UPDATED);
+    let root_event = events.last().expect("root update event missing");
+    assert_event_symbol(&env, &root_event, ROOT_UPDATED);
     let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
     assert_eq!(old_root, None);
     assert_eq!(new_root, root1);
@@ -1200,16 +1206,18 @@ fn test_full_identity_lifecycle() {
 
     let events = env.events().all();
     assert_eq!(events.len(), events_len + 2);
-    let transfer_event = events.last().unwrap();
-    assert_event_symbol(&env, transfer_event, TRANSFER_EVENT);
+    let transfer_event = events.last().expect("transfer event missing");
+    assert_event_symbol(&env, &transfer_event, TRANSFER_EVENT);
     let (commitment, from_owner, to_owner): (BytesN<32>, Address, Address) =
         transfer_event.2.into_val(&env);
     assert_eq!(commitment, hash);
     assert_eq!(from_owner, owner);
     assert_eq!(to_owner, new_owner);
 
-    let root_event = &events[events.len() - 2];
-    assert_event_symbol(&env, root_event, ROOT_UPDATED);
+    let root_event = events
+        .get(events.len() - 2)
+        .expect("previous root event missing");
+    assert_event_symbol(&env, &root_event, ROOT_UPDATED);
     let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
     assert_eq!(old_root, Some(root1));
     assert_eq!(new_root, root2);
@@ -1223,8 +1231,8 @@ fn test_full_identity_lifecycle() {
     client.update_smt_root(&root3);
     let events = env.events().all();
     assert_eq!(events.len(), events_len + 1);
-    let root_event = events.last().unwrap();
-    assert_event_symbol(&env, root_event, ROOT_UPDATED);
+    let root_event = events.last().expect("final root update event missing");
+    assert_event_symbol(&env, &root_event, ROOT_UPDATED);
     let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
     assert_eq!(old_root, Some(root2));
     assert_eq!(new_root, root3);
@@ -1350,7 +1358,8 @@ fn test_update_root_emits_event() {
     assert_eq!(last_event.0, contract_id);
 
     // Decode the Val back into a Symbol to properly compare it
-    let event_name = Symbol::try_from_val(&env, &last_event.1.get(0).unwrap()).unwrap();
+    let event_topic = last_event.1.get(0).expect("event topic missing");
+    let event_name = Symbol::try_from_val(&env, &event_topic).expect("event name should decode");
     assert_eq!(event_name, Symbol::new(&env, "ROOT_UPD"));
 
     let (old, new): (Option<BytesN<32>>, BytesN<32>) = last_event.2.into_val(&env);

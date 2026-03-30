@@ -102,8 +102,10 @@ mod tests {
 
         let mut found = false;
         for (_contract, topics, data) in events.iter().rev() {
-            let event_name: Result<soroban_sdk::Symbol, _> =
-                soroban_sdk::Symbol::try_from_val(&env, &topics.get(0).unwrap());
+            let event_name: Result<soroban_sdk::Symbol, _> = soroban_sdk::Symbol::try_from_val(
+                &env,
+                &topics.get(0).expect("event topic missing"),
+            );
             if let Ok(name) = event_name {
                 if name == soroban_sdk::Symbol::new(&env, "BID_PLCD") {
                     if let Ok((ev_bidder, ev_amount)) = <(Address, i128)>::try_from_val(&env, &data)
