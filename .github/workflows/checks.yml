@@ -50,3 +50,8 @@ jobs:
       run: |
         source $HOME/.cargo/env
         cargo check --verbose
+
+    - name: Build contracts for wasm32v1-none
+      run: |
+        source $HOME/.cargo/env
+        cargo build --target wasm32v1-none --release --verbose
