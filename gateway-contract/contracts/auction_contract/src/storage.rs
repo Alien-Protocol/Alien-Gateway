@@ -1,5 +1,5 @@
-use crate::types::{AuctionStatus, DataKey};
-use soroban_sdk::{Address, BytesN, Env};
+use crate::types::{AuctionState, AuctionStatus, Bid, InstanceKey};
+use soroban_sdk::{contracttype, Address, BytesN, Env, Vec};
 
 /// TTL constants for persistent storage entries.
 /// PERSISTENT_BUMP_AMOUNT: 30 days × 24h × 3600s / 5s per ledger = 518_400 ledgers
@@ -7,54 +7,61 @@ pub(crate) const PERSISTENT_BUMP_AMOUNT: u32 = 518_400; // 30 * 24 * 3600 / 5
 /// PERSISTENT_LIFETIME_THRESHOLD: 7 days × 24h × 3600s / 5s per ledger = 120_960 ledgers
 pub(crate) const PERSISTENT_LIFETIME_THRESHOLD: u32 = 120_960; // 7 * 24 * 3600 / 5
 
+#[contracttype]
+pub enum DataKey {
+    Auction(BytesN<32>),
+    Bid(BytesN<32>, Address),
+    AllBidders(BytesN<32>),
+}
+
 pub fn get_status(env: &Env) -> AuctionStatus {
     env.storage()
         .instance()
-        .get(&DataKey::Status)
+        .get(&InstanceKey::Status)
         .unwrap_or(AuctionStatus::Open)
 }
 
 pub fn set_status(env: &Env, status: AuctionStatus) {
-    env.storage().instance().set(&DataKey::Status, &status);
+    env.storage().instance().set(&InstanceKey::Status, &status);
 }
 
 pub fn get_highest_bidder(env: &Env) -> Option<Address> {
-    env.storage().instance().get(&DataKey::HighestBidder)
+    env.storage().instance().get(&InstanceKey::HighestBidder)
 }
 
 pub fn set_highest_bidder(env: &Env, bidder: &Address) {
     env.storage()
         .instance()
-        .set(&DataKey::HighestBidder, bidder);
+        .set(&InstanceKey::HighestBidder, bidder);
 }
 
 pub fn get_factory_contract(env: &Env) -> Option<Address> {
-    env.storage().instance().get(&DataKey::FactoryContract)
+    env.storage().instance().get(&InstanceKey::FactoryContract)
 }
 
 pub fn set_factory_contract(env: &Env, factory: &Address) {
     env.storage()
         .instance()
-        .set(&DataKey::FactoryContract, factory);
+        .set(&InstanceKey::FactoryContract, factory);
 }
 
 pub fn get_end_time(env: &Env) -> u64 {
-    env.storage().instance().get(&DataKey::EndTime).unwrap_or(0)
+    env.storage().instance().get(&InstanceKey::EndTime).unwrap_or(0)
 }
 
 pub fn set_end_time(env: &Env, end_time: u64) {
-    env.storage().instance().set(&DataKey::EndTime, &end_time);
+    env.storage().instance().set(&InstanceKey::EndTime, &end_time);
 }
 
 pub fn get_highest_bid(env: &Env) -> u128 {
     env.storage()
         .instance()
-        .get(&DataKey::HighestBid)
+        .get(&InstanceKey::HighestBid)
         .unwrap_or(0)
 }
 
 pub fn set_highest_bid(env: &Env, bid: u128) {
-    env.storage().instance().set(&DataKey::HighestBid, &bid);
+    env.storage().instance().set(&InstanceKey::HighestBid, &bid);
 }
 
 // --- id-scoped auction storage ---
@@ -248,4 +255,59 @@ pub fn auction_set_bid_refunded(env: &Env, id: u32, bidder: &Address) {
         PERSISTENT_LIFETIME_THRESHOLD,
         PERSISTENT_BUMP_AMOUNT,
     );
+}
+
+// --- persistent storage helpers for AuctionState and Bid ---
+
+pub fn get_auction(env: &Env, hash: &BytesN<32>) -> Option<AuctionState> {
+    env.storage().persistent().get(&DataKey::Auction(hash.clone()))
+}
+
+pub fn set_auction(env: &Env, hash: &BytesN<32>, state: &AuctionState) {
+    let key = DataKey::Auction(hash.clone());
+    env.storage().persistent().set(&key, state);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
+}
+
+pub fn has_auction(env: &Env, hash: &BytesN<32>) -> bool {
+    env.storage().persistent().has(&DataKey::Auction(hash.clone()))
+}
+
+pub fn get_bid(env: &Env, hash: &BytesN<32>, bidder: &Address) -> Option<Bid> {
+    env.storage().persistent().get(&DataKey::Bid(hash.clone(), bidder.clone()))
+}
+
+pub fn set_bid(env: &Env, hash: &BytesN<32>, bidder: &Address, bid: &Bid) {
+    let key = DataKey::Bid(hash.clone(), bidder.clone());
+    env.storage().persistent().set(&key, bid);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
+}
+
+pub fn get_all_bidders(env: &Env, hash: &BytesN<32>) -> Vec<Address> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::AllBidders(hash.clone()))
+        .unwrap_or(Vec::new(env))
+}
+
+pub fn add_bidder(env: &Env, hash: &BytesN<32>, bidder: Address) {
+    let mut bidders = get_all_bidders(env, hash);
+    if !bidders.contains(&bidder) {
+        bidders.push_back(bidder);
+        let key = DataKey::AllBidders(hash.clone());
+        env.storage().persistent().set(&key, &bidders);
+        env.storage().persistent().extend_ttl(
+            &key,
+            PERSISTENT_LIFETIME_THRESHOLD,
+            PERSISTENT_BUMP_AMOUNT,
+        );
+    }
 }

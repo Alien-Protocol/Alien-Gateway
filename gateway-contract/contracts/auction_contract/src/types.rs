@@ -10,7 +10,7 @@ pub enum AuctionStatus {
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum DataKey {
+pub enum InstanceKey {
     Status,
     HighestBidder,
     FactoryContract,
