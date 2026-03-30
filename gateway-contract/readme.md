@@ -14,6 +14,25 @@ The gateway-contract workspace consists of the following contracts:
 
 Each contract is a separate crate within the workspace and can be built and tested independently or as part of the entire workspace.
 
+## Quick Start
+
+Get started with Alien Gateway Contracts in just a few commands:
+
+```bash
+# 1. Install prerequisites
+rustup target add wasm32v1-none
+cargo install --locked stellar-cli
+
+# 2. Build all contracts
+cargo build --target wasm32v1-none --release
+
+# 3. Run tests
+cargo test
+
+# 4. Deploy to testnet
+stellar contract deploy --wasm target/wasm32v1-none/release/core_contract.wasm --network testnet
+```
+
 ## Prerequisites
 
 - Rust 1.70+ with `wasm32v1-none` target
