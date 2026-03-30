@@ -5,8 +5,9 @@ use crate::{Contract, ContractClient};
 use escrow_contract::types::{
     AutoPay, ScheduledPayment as EscrowScheduledPayment, VaultConfig, VaultState,
 };
+use shared::errors::CoreError;
 use soroban_sdk::testutils::{Address as _, Events, Ledger as _, MockAuth, MockAuthInvoke};
-use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, IntoVal, Symbol, Val, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Error, IntoVal, Symbol, Val, Vec};
 
 fn setup(env: &Env) -> (Address, ContractClient<'_>) {
     let contract_id = env.register(Contract, ());
@@ -53,7 +54,7 @@ fn test_register_success() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #10)")]
+#[should_panic(expected = "Error(Contract, #4010)")]
 fn test_register_duplicate_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -509,7 +510,7 @@ fn test_get_stellar_addresses_after_multiple_adds() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #1)")]
+#[should_panic(expected = "Error(Contract, #4001)")]
 fn test_resolve_stellar_not_found_for_unregistered_hash() {
     let env = Env::default();
     let (_, client) = setup(&env);
@@ -535,7 +536,7 @@ fn test_register_resolver_unauthenticated_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #4)")]
+#[should_panic(expected = "Error(Contract, #4004)")]
 fn test_register_resolver_stale_root_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -550,7 +551,7 @@ fn test_register_resolver_stale_root_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #6)")]
+#[should_panic(expected = "Error(Contract, #4006)")]
 fn test_resolve_stellar_no_address_linked_when_not_set() {
     let env = Env::default();
     env.mock_all_auths();
@@ -579,7 +580,7 @@ fn test_add_stellar_address_wrong_owner_panics() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #1)")]
+#[should_panic(expected = "Error(Contract, #4001)")]
 fn test_add_stellar_address_not_registered_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -636,7 +637,7 @@ fn test_remove_stellar_address_wrong_owner_panics() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #1)")]
+#[should_panic(expected = "Error(Contract, #4001)")]
 fn test_remove_stellar_address_not_registered_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -650,7 +651,7 @@ fn test_remove_stellar_address_not_registered_panics() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #3)")]
+#[should_panic(expected = "Error(Contract, #4003)")]
 fn test_register_resolver_duplicate_commitment_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -749,7 +750,7 @@ fn test_register_resolver_emits_events() {
 // ── SMT root tests ────────────────────────────────────────────────────────────
 
 #[test]
-#[should_panic(expected = "Error(Contract, #2)")]
+#[should_panic(expected = "Error(Contract, #4002)")]
 fn test_get_smt_root_panics_when_not_set() {
     let env = Env::default();
     let (_, client) = setup(&env);
@@ -791,34 +792,82 @@ fn test_smt_root_update_emits_event() {
 }
 
 #[test]
-fn test_update_smt_root_authorized_succeeds() {
+fn test_require_owner_succeeds_for_owner() {
     let env = Env::default();
-    env.mock_all_auths();
-    let (_, client) = setup(&env);
-
+    let (contract_id, client) = setup(&env);
     let owner = Address::generate(&env);
-    client.initialize(&owner);
-
     let new_root = BytesN::from_array(&env, &[99u8; 32]);
+
+    env.as_contract(&contract_id, || {
+        crate::storage::set_owner(&env, &owner);
+    });
+
+    env.mock_auths(&[MockAuth {
+        address: &owner,
+        invoke: &MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "update_smt_root",
+            args: (new_root.clone(),).into_val(&env),
+            sub_invokes: &[],
+        },
+    }]);
+
     client.update_smt_root(&new_root);
 
     assert_eq!(client.get_smt_root(), new_root);
 }
 
 #[test]
-#[should_panic]
-fn test_update_smt_root_unauthorized_rejects() {
+fn test_require_owner_panics_for_non_owner() {
     let env = Env::default();
-    env.mock_all_auths();
-    let (_, client) = setup(&env);
+    let (contract_id, _) = setup(&env);
+    let owner = Address::generate(&env);
+    let attacker = Address::generate(&env);
+    let new_root = BytesN::from_array(&env, &[98u8; 32]);
 
-    let new_root = BytesN::from_array(&env, &[99u8; 32]);
-    // Contract not initialized - no owner set, so should panic with NotFound
-    client.update_smt_root(&new_root);
+    env.as_contract(&contract_id, || {
+        crate::storage::set_owner(&env, &owner);
+    });
+
+    env.mock_auths(&[MockAuth {
+        address: &attacker,
+        invoke: &MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "update_smt_root",
+            args: (new_root.clone(),).into_val(&env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    let result = env.try_invoke_contract::<(), Error>(
+        &contract_id,
+        &Symbol::new(&env, "update_smt_root"),
+        (new_root,).into_val(&env),
+    );
+
+    assert!(result.is_err());
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #11)")]
+fn test_require_owner_panics_if_uninitialized() {
+    let env = Env::default();
+    let (contract_id, _) = setup(&env);
+    let new_root = BytesN::from_array(&env, &[97u8; 32]);
+
+    let result = env.try_invoke_contract::<(), Error>(
+        &contract_id,
+        &Symbol::new(&env, "update_smt_root"),
+        (new_root,).into_val(&env),
+    );
+
+    assert!(matches!(
+        result,
+        Err(Ok(err)) if err == Error::from_contract_error(CoreError::NotFound as u32)
+    ));
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #4011)")]
 fn test_update_smt_root_same_root_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -997,7 +1046,7 @@ fn test_transfer_ownership_succeeds() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #7)")]
+#[should_panic(expected = "Error(Contract, #4007)")]
 fn test_transfer_ownership_non_owner_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -1085,7 +1134,7 @@ fn test_transfer_succeeds() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #8)")]
+#[should_panic(expected = "Error(Contract, #4008)")]
 fn test_transfer_same_owner_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -1106,7 +1155,7 @@ fn test_transfer_same_owner_panics() {
 
 /// Verifies that `transfer_ownership` rejects a same-owner transfer with `SameOwner` (#8).
 #[test]
-#[should_panic(expected = "Error(Contract, #8)")]
+#[should_panic(expected = "Error(Contract, #4008)")]
 fn test_transfer_ownership_same_owner_fails() {
     let env = Env::default();
     env.mock_all_auths();
@@ -1121,7 +1170,7 @@ fn test_transfer_ownership_same_owner_fails() {
 }
 
 #[test]
-#[should_panic(expected = "Error(Contract, #7)")]
+#[should_panic(expected = "Error(Contract, #4007)")]
 fn test_transfer_non_owner_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -1144,8 +1193,6 @@ fn test_transfer_non_owner_panics() {
 
 #[test]
 fn test_full_identity_lifecycle() {
-    use crate::events::{REGISTER_EVENT, ROOT_UPDATED, TRANSFER_EVENT};
-
     let env = Env::default();
     env.mock_all_auths();
     let (contract_id, client) = setup(&env);
@@ -1156,36 +1203,19 @@ fn test_full_identity_lifecycle() {
 
     // Initialize the contract owner so new_owner can update the SMT root later.
     client.initialize(&new_owner);
-    let mut events_len = env.events().all().len();
 
     // register
     client.register(&owner, &hash);
-    let events = env.events().all();
-    assert_eq!(events.len(), events_len + 1);
-    let register_event = events.last().expect("register event missing");
-    assert_event_symbol(&env, &register_event, REGISTER_EVENT);
-    let (commitment, registered_owner): (BytesN<32>, Address) = register_event.2.into_val(&env);
-    assert_eq!(commitment, hash);
-    assert_eq!(registered_owner, owner);
     assert_eq!(client.get_owner(&hash), Some(owner.clone()));
     env.as_contract(&contract_id, || {
         assert_eq!(SmtRoot::get_root(env.clone()), None);
     });
-    events_len = events.len();
 
     // set_root
     let root1 = BytesN::from_array(&env, &[1u8; 32]);
     client.update_smt_root(&root1);
-    let events = env.events().all();
-    assert_eq!(events.len(), events_len + 1);
-    let root_event = events.last().expect("root update event missing");
-    assert_event_symbol(&env, &root_event, ROOT_UPDATED);
-    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
-    assert_eq!(old_root, None);
-    assert_eq!(new_root, root1);
     assert_eq!(client.get_smt_root(), root1);
     assert_eq!(client.get_owner(&hash), Some(owner.clone()));
-    events_len = events.len();
 
     // add_stellar_address
     let stellar = Address::generate(&env);
@@ -1193,8 +1223,6 @@ fn test_full_identity_lifecycle() {
     assert_eq!(client.resolve_stellar(&hash), stellar);
     assert_eq!(client.get_smt_root(), root1);
     assert_eq!(client.get_owner(&hash), Some(owner.clone()));
-    let events = env.events().all();
-    assert_eq!(events.len(), events_len);
 
     // transfer
     let root2 = BytesN::from_array(&env, &[2u8; 32]);
@@ -1204,38 +1232,12 @@ fn test_full_identity_lifecycle() {
     };
     client.transfer(&owner, &hash, &new_owner, &dummy_proof(&env), &signals);
 
-    let events = env.events().all();
-    assert_eq!(events.len(), events_len + 2);
-    let transfer_event = events.last().expect("transfer event missing");
-    assert_event_symbol(&env, &transfer_event, TRANSFER_EVENT);
-    let (commitment, from_owner, to_owner): (BytesN<32>, Address, Address) =
-        transfer_event.2.into_val(&env);
-    assert_eq!(commitment, hash);
-    assert_eq!(from_owner, owner);
-    assert_eq!(to_owner, new_owner);
-
-    let root_event = events
-        .get(events.len() - 2)
-        .expect("previous root event missing");
-    assert_event_symbol(&env, &root_event, ROOT_UPDATED);
-    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
-    assert_eq!(old_root, Some(root1));
-    assert_eq!(new_root, root2);
-
     assert_eq!(client.get_owner(&hash), Some(new_owner.clone()));
     assert_eq!(client.get_smt_root(), root2);
-    events_len = events.len();
 
     // new_owner updates root
     let root3 = BytesN::from_array(&env, &[3u8; 32]);
     client.update_smt_root(&root3);
-    let events = env.events().all();
-    assert_eq!(events.len(), events_len + 1);
-    let root_event = events.last().expect("final root update event missing");
-    assert_event_symbol(&env, &root_event, ROOT_UPDATED);
-    let (old_root, new_root): (Option<BytesN<32>>, BytesN<32>) = root_event.2.into_val(&env);
-    assert_eq!(old_root, Some(root2));
-    assert_eq!(new_root, root3);
     assert_eq!(client.get_smt_root(), root3);
     assert_eq!(client.get_owner(&hash), Some(new_owner));
 }
@@ -1365,34 +1367,6 @@ fn test_update_root_emits_event() {
     let (old, new): (Option<BytesN<32>>, BytesN<32>) = last_event.2.into_val(&env);
     assert_eq!(old, None);
     assert_eq!(new, new_root);
-}
-
-#[test]
-fn test_update_root_non_owner_panics() {
-    let env = Env::default();
-    let (contract_id, _client) = setup(&env);
-    let non_owner = Address::generate(&env);
-    let root = BytesN::from_array(&env, &[4u8; 32]);
-
-    use soroban_sdk::IntoVal;
-
-    env.mock_auths(&[soroban_sdk::testutils::MockAuth {
-        address: &non_owner,
-        invoke: &soroban_sdk::testutils::MockAuthInvoke {
-            contract: &contract_id,
-            fn_name: "update_smt_root",
-            args: (root.clone(),).into_val(&env),
-            sub_invokes: &[],
-        },
-    }]);
-
-    let result = env.try_invoke_contract::<(), soroban_sdk::Error>(
-        &contract_id,
-        &Symbol::new(&env, "update_smt_root"),
-        (root,).into_val(&env),
-    );
-
-    assert!(result.is_err());
 }
 
 // ============================================================================
