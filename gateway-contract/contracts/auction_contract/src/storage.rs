@@ -2,10 +2,10 @@ use crate::types::{AuctionStatus, DataKey};
 use soroban_sdk::{Address, Env};
 
 /// TTL constants for persistent storage entries.
-/// Bump amount: ~30 days (at ~5s per ledger close).
-pub(crate) const PERSISTENT_BUMP_AMOUNT: u32 = 518_400;
-/// Lifetime threshold: ~7 days — entries are extended when remaining TTL drops below this.
-pub(crate) const PERSISTENT_LIFETIME_THRESHOLD: u32 = 120_960;
+/// PERSISTENT_BUMP_AMOUNT: 30 days × 24h × 3600s / 5s per ledger = 518_400 ledgers
+pub(crate) const PERSISTENT_BUMP_AMOUNT: u32 = 518_400; // 30 * 24 * 3600 / 5
+/// PERSISTENT_LIFETIME_THRESHOLD: 7 days × 24h × 3600s / 5s per ledger = 120_960 ledgers
+pub(crate) const PERSISTENT_LIFETIME_THRESHOLD: u32 = 120_960; // 7 * 24 * 3600 / 5
 
 pub fn get_status(env: &Env) -> AuctionStatus {
     env.storage()
@@ -191,6 +191,40 @@ pub fn auction_is_claimed(env: &Env, id: u32) -> bool {
 
 pub fn auction_set_claimed(env: &Env, id: u32) {
     let key = AuctionKey::Claimed(id);
+    env.storage().persistent().set(&key, &true);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
+}
+
+pub fn auction_get_outbid_amount(env: &Env, id: u32, bidder: &Address) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&AuctionKey::OutbidAmount(id, bidder.clone()))
+        .unwrap_or(0)
+}
+
+pub fn auction_set_outbid_amount(env: &Env, id: u32, bidder: &Address, amount: i128) {
+    let key = AuctionKey::OutbidAmount(id, bidder.clone());
+    env.storage().persistent().set(&key, &amount);
+    env.storage().persistent().extend_ttl(
+        &key,
+        PERSISTENT_LIFETIME_THRESHOLD,
+        PERSISTENT_BUMP_AMOUNT,
+    );
+}
+
+pub fn auction_is_bid_refunded(env: &Env, id: u32, bidder: &Address) -> bool {
+    env.storage()
+        .persistent()
+        .get(&AuctionKey::BidRefunded(id, bidder.clone()))
+        .unwrap_or(false)
+}
+
+pub fn auction_set_bid_refunded(env: &Env, id: u32, bidder: &Address) {
+    let key = AuctionKey::BidRefunded(id, bidder.clone());
     env.storage().persistent().set(&key, &true);
     env.storage().persistent().extend_ttl(
         &key,

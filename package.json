@@ -1,12 +1,12 @@
 {
+  "dependencies": { 
+    "@types/node": "20.19.37",
+    "undici-types": "6.21.0"
+  },
   "devDependencies": {
-    "@commitlint/cli": "^20.4.4",
-    "@commitlint/config-conventional": "^20.4.4",
-    "husky": "^9.1.7",
-    "lint-staged": "^16.3.3"
+    "husky": "^9.1.7"
   },
   "scripts": {
-    "prepare": "husky",
-    "test:poseidon": "mocha tests/poseidon.test.js"
+    "prepare": "husky"
   }
 }

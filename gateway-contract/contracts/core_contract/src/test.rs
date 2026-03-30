@@ -7,7 +7,7 @@ use crate::{Contract, ContractClient};
 use escrow_contract::types::{
     AutoPay, ScheduledPayment as EscrowScheduledPayment, VaultConfig, VaultState,
 };
-use soroban_sdk::testutils::{Address as _, Events, MockAuth, MockAuthInvoke};
+use soroban_sdk::testutils::{Address as _, Events, Ledger as _, MockAuth, MockAuthInvoke};
 use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, IntoVal, Symbol, Val, Vec};
 
 fn setup(env: &Env) -> (Address, ContractClient<'_>) {
@@ -438,6 +438,47 @@ fn test_add_stellar_address_overwrites_previous() {
 }
 
 #[test]
+fn test_get_stellar_addresses_initially_empty() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 55);
+
+    client.register(&owner, &hash);
+
+    let addresses = client.get_stellar_addresses(&hash);
+    assert_eq!(addresses.len(), 0);
+}
+
+#[test]
+fn test_get_stellar_addresses_after_multiple_adds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 56);
+    let addr_one = Address::generate(&env);
+    let addr_two = Address::generate(&env);
+    let addr_three = Address::generate(&env);
+
+    client.register(&owner, &hash);
+    client.add_stellar_address(&owner, &hash, &addr_one);
+    client.add_stellar_address(&owner, &hash, &addr_two);
+    client.add_stellar_address(&owner, &hash, &addr_three);
+
+    let addresses = client.get_stellar_addresses(&hash);
+    let mut expected = Vec::new(&env);
+    expected.push_back(addr_one);
+    expected.push_back(addr_two);
+    expected.push_back(addr_three);
+
+    assert_eq!(addresses, expected);
+}
+
+#[test]
 #[should_panic(expected = "Error(Contract, #1)")]
 fn test_resolve_stellar_not_found_for_unregistered_hash() {
     let env = Env::default();
@@ -659,6 +700,33 @@ fn test_smt_root_update_emits_event() {
 
     let events = env.events().all();
     assert!(!events.is_empty(), "ROOT_UPD events should be emitted");
+}
+
+#[test]
+fn test_update_smt_root_authorized_succeeds() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    client.initialize(&owner);
+
+    let new_root = BytesN::from_array(&env, &[99u8; 32]);
+    client.update_smt_root(&new_root);
+
+    assert_eq!(client.get_smt_root(), new_root);
+}
+
+#[test]
+#[should_panic]
+fn test_update_smt_root_unauthorized_rejects() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let new_root = BytesN::from_array(&env, &[99u8; 32]);
+    // Contract not initialized - no owner set, so should panic with NotFound
+    client.update_smt_root(&new_root);
 }
 
 // ── chain address helpers ─────────────────────────────────────────────────────
@@ -926,6 +994,22 @@ fn test_transfer_same_owner_panics() {
     };
     // new_owner == old_owner must panic with SameOwner (#8)
     client.transfer(&owner, &hash, &owner, &dummy_proof(&env), &signals);
+}
+
+/// Verifies that `transfer_ownership` rejects a same-owner transfer with `SameOwner` (#8).
+#[test]
+#[should_panic(expected = "Error(Contract, #8)")]
+fn test_transfer_ownership_same_owner_fails() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 35);
+
+    client.register(&owner, &hash);
+    // new_owner == current owner must return SameOwner (#8), not a generic host error.
+    client.transfer_ownership(&owner, &hash, &owner);
 }
 
 #[test]
@@ -1243,4 +1327,70 @@ fn test_add_shielded_address_unregistered_panics() {
 
     let result = client.try_add_shielded_address(&caller, &hash, &addr_commitment);
     assert!(result.is_err());
+}
+
+// ============================================================================
+// get_created_at tests
+// ============================================================================
+
+#[test]
+fn test_get_created_at_returns_none_for_unregistered() {
+    let env = Env::default();
+    let (_, client) = setup(&env);
+
+    let hash = commitment(&env, 90);
+    assert_eq!(client.get_created_at(&hash), None);
+}
+
+#[test]
+fn test_get_created_at_returns_timestamp_after_register() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 91);
+
+    client.register(&owner, &hash);
+
+    // The default test env ledger timestamp is 0
+    assert_eq!(client.get_created_at(&hash), Some(0u64));
+}
+
+#[test]
+fn test_get_created_at_reflects_ledger_timestamp() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    env.ledger().set_timestamp(1_700_000_000);
+
+    let owner = Address::generate(&env);
+    let hash = commitment(&env, 92);
+
+    client.register(&owner, &hash);
+
+    assert_eq!(client.get_created_at(&hash), Some(1_700_000_000u64));
+}
+
+#[test]
+fn test_get_created_at_unchanged_after_transfer() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (_, client) = setup(&env);
+
+    env.ledger().set_timestamp(1_000_000);
+
+    let owner = Address::generate(&env);
+    let new_owner = Address::generate(&env);
+    let hash = commitment(&env, 93);
+
+    client.register(&owner, &hash);
+    assert_eq!(client.get_created_at(&hash), Some(1_000_000u64));
+
+    // Advance time and transfer — created_at must remain the original timestamp
+    env.ledger().set_timestamp(2_000_000);
+    client.transfer_ownership(&owner, &hash, &new_owner);
+
+    assert_eq!(client.get_created_at(&hash), Some(1_000_000u64));
 }

@@ -54,4 +54,3 @@ template UsernameHash() {
     username_hash <== finalHash.out;
 }
 
-component main = UsernameHash();
