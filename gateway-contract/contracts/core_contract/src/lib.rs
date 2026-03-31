@@ -107,7 +107,7 @@ use address_manager::AddressManager;
 use admin::Admin;
 use registration::Registration;
 use resolver::Resolver;
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env};
+use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, Symbol};
 use transfer::Transfer;
 use types::{ChainType, PrivacyMode, Proof, PublicSignals};
 

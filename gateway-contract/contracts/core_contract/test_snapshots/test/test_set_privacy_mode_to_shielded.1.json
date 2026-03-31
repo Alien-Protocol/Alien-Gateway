@@ -51,6 +51,14 @@
                   "map": [
                     {
                       "key": {
+                        "symbol": "commitment"
+                      },
+                      "val": {
+                        "bytes": "2828282828282828282828282828282828282828282828282828282828282828"
+                      }
+                    },
+                    {
+                      "key": {
                         "symbol": "new_root"
                       },
                       "val": {
@@ -152,6 +160,51 @@
                 "durability": "persistent",
                 "val": {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                }
+              }
+            },
+            "ext": "v0"
+          },
+          518400
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+            "key": {
+              "vec": [
+                {
+                  "symbol": "CreatedAt"
+                },
+                {
+                  "bytes": "2828282828282828282828282828282828282828282828282828282828282828"
+                }
+              ]
+            },
+            "durability": "persistent"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+                "key": {
+                  "vec": [
+                    {
+                      "symbol": "CreatedAt"
+                    },
+                    {
+                      "bytes": "2828282828282828282828282828282828282828282828282828282828282828"
+                    }
+                  ]
+                },
+                "durability": "persistent",
+                "val": {
+                  "u64": "0"
                 }
               }
             },

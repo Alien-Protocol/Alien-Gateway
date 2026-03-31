@@ -28,6 +28,7 @@ fn e2e_offchain_proof_to_onchain() {
     let new_root = BytesN::from_array(&env, &[2u8; 32]);
     let proof = soroban_sdk::Bytes::from_slice(&env, &[1u8; 64]);
     let public_signals = PublicSignals {
+        commitment: hash.clone(),
         old_root: old_root.clone(),
         new_root: new_root.clone(),
     };
