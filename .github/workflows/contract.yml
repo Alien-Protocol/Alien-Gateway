@@ -16,7 +16,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: gateway-contract
+        working-directory: onchain
 
     steps:
     - uses: actions/checkout@v4
@@ -34,9 +34,7 @@ jobs:
       run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
     - name: Cargo check
-      run: |
-        source $HOME/.cargo/env
-        cargo check --verbose
+      run: cargo check --verbose
 
   build-and-test:
     name: Build & Test
@@ -45,7 +43,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: gateway-contract
+        working-directory: onchain
 
     steps:
     - uses: actions/checkout@v4
@@ -53,6 +51,7 @@ jobs:
     - name: Setup Rust
       uses: dtolnay/rust-toolchain@stable
       with:
+        components: rustfmt, clippy
         targets: wasm32-unknown-unknown
 
     - name: Build Soroban contracts (wasm32-unknown-unknown)
