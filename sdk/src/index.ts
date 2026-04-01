@@ -43,4 +43,5 @@ export type {
   ResolveUsernameResult,
   SubmittedTransaction,
   TransactionStatus,
+  WalletAdapter,
 } from "./register";

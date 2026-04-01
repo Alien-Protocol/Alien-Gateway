@@ -3,7 +3,7 @@ import {
   MerkleProofGenerator,
   MerkleProofGeneratorConfig,
 } from "./proof";
-import { hashUsername } from "./hasher";
+import { hashUsername } from "./usernameHasher";
 
 export interface SMTData {
   nodes: any;
