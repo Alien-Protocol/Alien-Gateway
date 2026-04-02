@@ -29,7 +29,7 @@ info() { echo -e "${CYAN}>  $1${RESET}"; }
 
 echo ""
 echo "================================================"
-echo "   Alien Gateway - ZK Circuit Compiler"
+echo "   Alien Protocol - ZK Circuit Compiler"
 echo "================================================"
 echo ""
 
