@@ -1,3 +1,5 @@
 node_modules
+.env
+.deployments
 # Soroban test snapshots — now committed as regression guards
 # gateway-contract/contracts/**/test_snapshots/
