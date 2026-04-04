@@ -3,7 +3,7 @@
 set -e
 
 # ─────────────────────────────────────────────
-#  Alien Gateway — Trusted Setup (Linux)
+#  Alien Protocol — Trusted Setup (Linux)
 # ─────────────────────────────────────────────
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
