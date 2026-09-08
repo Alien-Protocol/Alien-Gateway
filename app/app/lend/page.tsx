@@ -6,6 +6,8 @@ import { EmptyState } from "@/components/app/EmptyState";
 import { GlassCard, MetricCard } from "@/components/app/MetricCard";
 import { UtilizationBar } from "@/components/app/UtilizationBar";
 import { PageHeader } from "@/components/app/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTx } from "@/context/TxContext";
 import { useWallet } from "@/context/WalletContext";
 import { useProtocolState } from "@/hooks/useProtocol";
@@ -20,7 +22,6 @@ export default function LendPage() {
   const state = useProtocolState();
   const { execute } = useTx();
   const user = address ?? ADDRESSES.you;
-  const [tab, setTab] = useState<"supply" | "withdraw">("supply");
   const [amount, setAmount] = useState("");
   const n = parseAmount(amount);
   const supplied = state.supplies[user] ?? 0;
@@ -32,7 +33,11 @@ export default function LendPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader kicker="Lending pool" title="Supply USDC liquidity" />
+      <PageHeader
+        kicker="Earn"
+        title="Lend USDC"
+        description="Supply USDC to the pool and earn yield from borrowers."
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Total supply" value={formatUsd(state.pool.totalSupply)} accent="violet" />
@@ -56,22 +61,12 @@ export default function LendPage() {
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           <GlassCard className="space-y-4">
-            <div className="flex gap-2">
-              <button type="button" className="tab-btn" data-active={tab === "supply"} onClick={() => setTab("supply")}>
-                Supply
-              </button>
-              <button
-                type="button"
-                className="tab-btn"
-                data-active={tab === "withdraw"}
-                onClick={() => setTab("withdraw")}
-              >
-                Withdraw liquidity
-              </button>
-            </div>
-
-            {tab === "supply" ? (
-              <>
+            <Tabs defaultValue="supply" onValueChange={() => setAmount("")}>
+              <TabsList>
+                <TabsTrigger value="supply">Supply</TabsTrigger>
+                <TabsTrigger value="withdraw">Withdraw liquidity</TabsTrigger>
+              </TabsList>
+              <TabsContent value="supply" className="mt-4 space-y-4">
                 {supplyPaused ? (
                   <p className="border border-white/40 bg-white/[0.04] px-3 py-2 font-exo text-sm text-white">
                     Pool paused: supply
@@ -85,9 +80,8 @@ export default function LendPage() {
                   usdPrice={1}
                   disabled={supplyPaused}
                 />
-                <button
+                <Button
                   type="button"
-                  className="btn-primary"
                   disabled={supplyPaused || n <= 0 || n > wallet}
                   onClick={() =>
                     execute(
@@ -101,10 +95,9 @@ export default function LendPage() {
                   }
                 >
                   Supply
-                </button>
-              </>
-            ) : (
-              <>
+                </Button>
+              </TabsContent>
+              <TabsContent value="withdraw" className="mt-4 space-y-4">
                 {withdrawPaused ? (
                   <p className="border border-white/40 bg-white/[0.04] px-3 py-2 font-exo text-sm text-white">
                     Pool paused: withdrawLiquidity
@@ -122,9 +115,8 @@ export default function LendPage() {
                   Cap is min(your supply {formatUsd(supplied)}, available{" "}
                   {formatUsd(state.pool.availableLiquidity)}).
                 </p>
-                <button
+                <Button
                   type="button"
-                  className="btn-primary"
                   disabled={withdrawPaused || n <= 0 || n > cap}
                   onClick={() =>
                     execute(
@@ -138,9 +130,9 @@ export default function LendPage() {
                   }
                 >
                   Withdraw liquidity
-                </button>
-              </>
-            )}
+                </Button>
+              </TabsContent>
+            </Tabs>
           </GlassCard>
 
           <GlassCard>
@@ -149,11 +141,8 @@ export default function LendPage() {
               {formatUsd(supplied)}
             </p>
             <p className="mt-4 text-sm leading-relaxed text-white/50">
-              V1 borrower APR is 8.00% fixed ({BORROW_APR_BPS} bps). Supplier
-              yield is demo-estimated from utilization: {apy.toFixed(2)}% APY.
-            </p>
-            <p className="mt-3 text-xs text-white/35">
-              Interest model: linear per-second on ledger time.
+              Estimated supplier APY {apy.toFixed(2)}% · borrower APR{" "}
+              {(BORROW_APR_BPS / 100).toFixed(2)}%.
             </p>
           </GlassCard>
         </div>

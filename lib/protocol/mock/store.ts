@@ -42,6 +42,29 @@ export function resetState() {
   emit();
 }
 
+/**
+ * Clone the demo "you" bag onto a real wallet address so mock balances
+ * remain usable after connecting Freighter / Lobstr / etc.
+ */
+export function adoptConnectedUser(address: string) {
+  if (!address || address === ADDRESSES.you) return;
+  setState((s) => {
+    const cloneKey = <T>(bag: Record<string, T>): Record<string, T> => {
+      if (bag[address] != null) return bag;
+      const seed = bag[ADDRESSES.you];
+      if (seed == null) return bag;
+      return { ...bag, [address]: structuredClone(seed) };
+    };
+    return {
+      ...s,
+      wallets: cloneKey(s.wallets),
+      holdings: cloneKey(s.holdings),
+      debts: cloneKey(s.debts),
+      supplies: cloneKey(s.supplies),
+    };
+  });
+}
+
 export function derivePosition(user: string, s: ProtocolState = state): Position {
   return positionFromSnapshot(user, s);
 }

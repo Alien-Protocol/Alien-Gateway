@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { CosmicBackdrop } from "@/components/app/CosmicBackdrop";
 
 export function Starfield({ density = 220 }: { density?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -60,7 +61,8 @@ export function SpaceFx() {
   return (
     <>
       <Starfield />
-      <div className="scanlines pointer-events-none fixed inset-0 z-[1]" />
+      <CosmicBackdrop />
+      <div className="scanlines pointer-events-none fixed inset-0 z-[2]" />
       <div className="scan-sweep pointer-events-none fixed top-0 left-0 z-[2] w-full" />
     </>
   );

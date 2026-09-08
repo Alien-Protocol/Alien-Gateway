@@ -7,6 +7,8 @@ import { GlassCard } from "@/components/app/MetricCard";
 import { HealthFactorGauge } from "@/components/app/HealthFactorGauge";
 import { ConnectWalletButton } from "@/components/app/ConnectWalletButton";
 import { PageHeader } from "@/components/app/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useTx } from "@/context/TxContext";
 import { useWallet } from "@/context/WalletContext";
 import { useProtocolState } from "@/hooks/useProtocol";
@@ -22,7 +24,6 @@ export default function VaultPage() {
   const state = useProtocolState();
   const { execute } = useTx();
   const user = address ?? ADDRESSES.you;
-  const [tab, setTab] = useState<"deposit" | "withdraw">("deposit");
   const supported = state.assets.filter(
     (a) => a.supported && a.symbol !== "USDC",
   );
@@ -63,38 +64,38 @@ export default function VaultPage() {
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
       <div className="space-y-4">
-        <PageHeader kicker="Collateral vault" title="Deposit / withdraw" />
+        <PageHeader
+          kicker="Collateral"
+          title="Vault"
+          description="Deposit tokenized RWAs as collateral, or withdraw when your position allows."
+        />
 
-        <div className="flex gap-2">
-          <button type="button" className="tab-btn" data-active={tab === "deposit"} onClick={() => setTab("deposit")}>
-            Deposit
-          </button>
-          <button type="button" className="tab-btn" data-active={tab === "withdraw"} onClick={() => setTab("withdraw")}>
-            Withdraw
-          </button>
-        </div>
+        <Tabs defaultValue="deposit" onValueChange={() => setAmount("")}>
+          <TabsList>
+            <TabsTrigger value="deposit">Deposit</TabsTrigger>
+            <TabsTrigger value="withdraw">Withdraw</TabsTrigger>
+          </TabsList>
 
-        <GlassCard className="space-y-4">
-          <label className="block text-sm text-white/50">
-            Asset
-            <select
-              value={symbol}
-              onChange={(e) => {
-                setSymbol(e.target.value);
-                setAmount("");
-              }}
-              className="mt-1 w-full border border-white/25 bg-black px-3 py-2 font-exo text-white outline-none"
-            >
-              {supported.map((a) => (
-                <option key={a.symbol} value={a.symbol}>
-                  {a.symbol} — {a.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <GlassCard className="mt-4 space-y-4">
+            <label className="block text-sm text-white/50">
+              Asset
+              <select
+                value={symbol}
+                onChange={(e) => {
+                  setSymbol(e.target.value);
+                  setAmount("");
+                }}
+                className="mt-1 w-full border border-white/25 bg-black px-3 py-2 font-exo text-white outline-none"
+              >
+                {supported.map((a) => (
+                  <option key={a.symbol} value={a.symbol}>
+                    {a.symbol} — {a.name}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-          {tab === "deposit" ? (
-            <>
+            <TabsContent value="deposit" className="mt-0 space-y-4">
               {depositPaused ? (
                 <p className="border border-white/40 bg-white/[0.04] px-3 py-2 font-exo text-sm text-white">
                   Vault paused: deposit
@@ -111,9 +112,8 @@ export default function VaultPage() {
               <p className="text-xs text-white/40">
                 USD preview {formatUsd(n * px)} from mock oracle.
               </p>
-              <button
+              <Button
                 type="button"
-                className="btn-primary"
                 disabled={depositPaused || n <= 0 || n > walletBal}
                 onClick={() =>
                   execute(
@@ -127,10 +127,10 @@ export default function VaultPage() {
                 }
               >
                 Deposit
-              </button>
-            </>
-          ) : (
-            <>
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="withdraw" className="mt-0 space-y-4">
               {withdrawPaused ? (
                 <p className="border border-white/40 bg-white/[0.04] px-3 py-2 font-exo text-sm text-white">
                   Vault paused: withdraw
@@ -153,9 +153,8 @@ export default function VaultPage() {
                   {MIN_COLLATERAL_RATIO * 100}% min ratio). Withdraw is blocked.
                 </p>
               ) : null}
-              <button
+              <Button
                 type="button"
-                className="btn-primary"
                 disabled={withdrawPaused || n <= 0 || n > held || !safe}
                 onClick={() =>
                   execute(
@@ -169,10 +168,10 @@ export default function VaultPage() {
                 }
               >
                 Withdraw
-              </button>
-            </>
-          )}
-        </GlassCard>
+              </Button>
+            </TabsContent>
+          </GlassCard>
+        </Tabs>
       </div>
 
       <GlassCard className="h-fit space-y-4 lg:sticky lg:top-28">
@@ -199,32 +198,9 @@ export default function VaultPage() {
           )}
         </ul>
         <p className="text-xs text-white/35">
-          Blended max LTV {(pos.maxLtvBps / 100).toFixed(2)}% (
-          {pos.maxLtvBps} bps) · liq. threshold{" "}
-          {(pos.liquidationThresholdBps / 100).toFixed(2)}% (
-          {pos.liquidationThresholdBps} bps)
+          Max LTV {(pos.maxLtvBps / 100).toFixed(0)}% · liquidation at{" "}
+          {(pos.liquidationThresholdBps / 100).toFixed(0)}%
         </p>
-        <button
-          type="button"
-          className="btn-ghost w-full"
-          disabled={state.pause.vault.recovery}
-          onClick={() =>
-            execute(
-              {
-                title: "Recovery",
-                detail:
-                  "Vault recovery backstop (V1 preview). No on-chain recovery is executed in this dummy.",
-              },
-              async () => ({ txHash: `recovery-${Date.now()}` }),
-              "Recovery signal recorded (demo)",
-            )
-          }
-        >
-          Recovery
-        </button>
-        {state.pause.vault.recovery ? (
-          <p className="text-xs text-white/50">Vault paused: recovery</p>
-        ) : null}
       </GlassCard>
     </div>
   );

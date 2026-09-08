@@ -1,24 +1,32 @@
 "use client";
 
-import { cn } from "@/lib/cn";
-import {
-  EurcLogo,
-  TbillLogo,
-  TinvLogo,
-  TreitLogo,
-  UsdcLogo,
-  XlmLogo,
-} from "@/components/app/TokenLogos";
-import { useAssetLogos } from "@/hooks/useAssetLogos";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
+import { TokenEURC, TokenUSDC, TokenXLM } from "@web3icons/react";
+import { TbillLogo, TinvLogo, TreitLogo } from "@/components/app/TokenLogos";
+import { cn } from "@/lib/utils";
 
-const FALLBACK: Record<string, (size: number) => ReactNode> = {
-  USDC: (s) => <UsdcLogo size={s} />,
-  XLM: (s) => <XlmLogo size={s} />,
+type Web3Icon = ComponentType<{
+  size?: number | string;
+  variant?: "mono" | "branded" | "background";
+  className?: string;
+}>;
+
+type Web3Entry = {
+  Icon: Web3Icon;
+  /** XLM branded mark is black — use background on dark UI. */
+  variant: "mono" | "branded" | "background";
+};
+
+const WEB3_ICONS: Record<string, Web3Entry> = {
+  USDC: { Icon: TokenUSDC, variant: "branded" },
+  XLM: { Icon: TokenXLM, variant: "background" },
+  EURC: { Icon: TokenEURC, variant: "branded" },
+};
+
+const RWA_FALLBACK: Record<string, (size: number) => ReactNode> = {
   tBILL: (s) => <TbillLogo size={s} />,
   tREIT: (s) => <TreitLogo size={s} />,
   tINV: (s) => <TinvLogo size={s} />,
-  EURC: (s) => <EurcLogo size={s} />,
 };
 
 export function AssetIcon({
@@ -28,9 +36,8 @@ export function AssetIcon({
   symbol: string;
   size?: number;
 }) {
-  const logos = useAssetLogos();
-  const src = logos[symbol];
-  const fallback = FALLBACK[symbol];
+  const web3 = WEB3_ICONS[symbol];
+  const rwa = RWA_FALLBACK[symbol];
 
   return (
     <span
@@ -40,17 +47,14 @@ export function AssetIcon({
       style={{ width: size, height: size }}
       title={symbol}
     >
-      {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={src}
-          alt=""
-          width={size}
-          height={size}
-          className="h-full w-full object-cover"
+      {web3 ? (
+        <web3.Icon
+          size={size}
+          variant={web3.variant}
+          className="h-full w-full"
         />
-      ) : fallback ? (
-        fallback(size)
+      ) : rwa ? (
+        rwa(size)
       ) : (
         <span className="grid h-full w-full place-items-center bg-white font-sans text-[11px] font-bold text-black">
           {symbol.slice(0, 2)}

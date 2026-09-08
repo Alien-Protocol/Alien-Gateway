@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { toast } from "sonner";
 import { appConfig } from "@/lib/config";
 import { fakeTxHash } from "@/lib/format";
 import { ProtocolError } from "@/lib/protocol/errors";
@@ -51,18 +52,19 @@ export function TxProvider({ children }: { children: ReactNode }) {
   const [request, setRequest] = useState<TxRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
-  const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const pushToast = useCallback((message: string, tone: Toast["tone"] = "success") => {
-    const id = `${Date.now()}-${Math.random()}`;
-    setToasts((t) => [...t, { id, message, tone }]);
-    setTimeout(() => {
-      setToasts((t) => t.filter((x) => x.id !== id));
-    }, 4200);
-  }, []);
+  const pushToast = useCallback(
+    (message: string, tone: Toast["tone"] = "success") => {
+      if (tone === "error") toast.error(message);
+      else if (tone === "info") toast.info(message);
+      else toast.success(message);
+    },
+    [],
+  );
 
   const dismissToast = useCallback((id: string) => {
-    setToasts((t) => t.filter((x) => x.id !== id));
+    void id;
+    toast.dismiss();
   }, []);
 
   const close = useCallback(() => {
@@ -129,7 +131,7 @@ export function TxProvider({ children }: { children: ReactNode }) {
       error,
       txHash,
       expertUrl,
-      toasts,
+      toasts: [] as Toast[],
       execute,
       close,
       dismissToast,
@@ -142,7 +144,6 @@ export function TxProvider({ children }: { children: ReactNode }) {
       error,
       txHash,
       expertUrl,
-      toasts,
       execute,
       close,
       dismissToast,

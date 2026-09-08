@@ -1,8 +1,9 @@
 "use client";
 
-import { formatUsd } from "@/lib/format";
-import { cn } from "@/lib/cn";
 import { AssetIcon } from "@/components/app/AssetIcon";
+import { Button } from "@/components/ui/button";
+import { formatUsd } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 export function AmountInput({
   value,
@@ -52,14 +53,15 @@ export function AmountInput({
           {max != null ? (
             <>
               <span className="tabular-nums">Bal {max.toLocaleString()}</span>
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="xs"
                 disabled={disabled}
                 onClick={() => onChange(String(max))}
-                className="border border-white/30 px-2 py-0.5 font-orbitron text-[10px] font-bold uppercase tracking-wider text-white hover:bg-white hover:text-black"
               >
                 Max
-              </button>
+              </Button>
             </>
           ) : null}
         </span>

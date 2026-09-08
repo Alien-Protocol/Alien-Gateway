@@ -1,14 +1,30 @@
 "use client";
 
-import { AddressChip } from "@/components/app/AddressChip";
 import { AssetIcon } from "@/components/app/AssetIcon";
 import { BpsBadge } from "@/components/app/BpsBadge";
 import { GlassCard } from "@/components/app/MetricCard";
 import { PageHeader } from "@/components/app/PageHeader";
+import { RelativeTime } from "@/components/app/RelativeTime";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useProtocolState } from "@/hooks/useProtocol";
-import { cn } from "@/lib/cn";
-import { formatUsd, relativeTime } from "@/lib/format";
-import { computeHf, configOf, priceOf } from "@/lib/protocol/math";
+import { cn } from "@/lib/utils";
+import { formatUsd } from "@/lib/format";
+import { priceOf } from "@/lib/protocol/math";
 import type { AssetConfig } from "@/lib/protocol/types";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
@@ -20,187 +36,213 @@ export default function MarketsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader kicker="Markets" title="Assets & oracle freshness" />
+      <PageHeader
+        kicker="Assets"
+        title="Markets"
+        description="Supported collateral and USDC liquidity on Alien Protocol."
+      />
 
       <GlassCard padding={false}>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[56rem] text-left text-base">
-            <thead className="font-raj text-[13px] uppercase tracking-wider text-white/45">
-              <tr className="border-b border-white/10">
-                <th className="px-5 py-4">Asset</th>
-                <th className="px-3 py-4">Oracle</th>
-                <th className="px-3 py-4">Max LTV</th>
-                <th className="px-3 py-4">Liq. threshold</th>
-                <th className="px-3 py-4 text-right">Posted / supplied</th>
-                <th className="px-5 py-4 text-right">Utilization</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="min-w-[36rem] text-sm sm:min-w-[56rem] sm:text-base">
+            <TableHeader>
+              <TableRow className="border-white/10 hover:bg-transparent">
+                <TableHead className="px-5 py-4 font-raj text-[13px] uppercase tracking-wider text-white/45">
+                  Asset
+                </TableHead>
+                <TableHead className="px-3 py-4 font-raj text-[13px] uppercase tracking-wider text-white/45">
+                  Oracle
+                </TableHead>
+                <TableHead className="px-3 py-4 font-raj text-[13px] uppercase tracking-wider text-white/45">
+                  Max LTV
+                </TableHead>
+                <TableHead className="px-3 py-4 font-raj text-[13px] uppercase tracking-wider text-white/45">
+                  Liq. threshold
+                </TableHead>
+                <TableHead className="px-3 py-4 text-right font-raj text-[13px] uppercase tracking-wider text-white/45">
+                  Posted / supplied
+                </TableHead>
+                <TableHead className="px-5 py-4 text-right font-raj text-[13px] uppercase tracking-wider text-white/45">
+                  Utilization
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {state.assets.map((a) => {
                 const px = priceOf(a.symbol, state.prices);
                 const isUsdc = a.symbol === "USDC";
                 return (
-                  <tr
+                  <TableRow
                     key={a.symbol}
-                    className="cursor-pointer border-b border-white/6 hover:bg-white/[0.04]"
+                    className="cursor-pointer border-white/6 hover:bg-white/[0.04]"
                     onClick={() => setOpen(a.symbol)}
                   >
-                    <td className="px-5 py-4">
+                    <TableCell className="px-5 py-4">
                       <span className="inline-flex items-center gap-3">
                         <AssetIcon symbol={a.symbol} size={40} />
                         <span>
-                          <span className="block text-[15px] font-semibold">{a.symbol}</span>
+                          <span className="block text-[15px] font-semibold">
+                            {a.symbol}
+                          </span>
                           <span className="text-sm text-white/45">{a.name}</span>
                         </span>
                       </span>
-                    </td>
-                    <td className="px-3 py-4">
-                      <div className="text-[15px] tabular-nums">{formatUsd(px?.price ?? 0, { digits: a.symbol === "tBILL" || a.symbol === "USDC" || a.symbol === "tINV" ? 3 : 2 })}</div>
+                    </TableCell>
+                    <TableCell className="px-3 py-4">
+                      <div className="text-[15px] tabular-nums">
+                        {formatUsd(px?.price ?? 0, {
+                          digits:
+                            a.symbol === "tBILL" ||
+                            a.symbol === "USDC" ||
+                            a.symbol === "tINV"
+                              ? 3
+                              : 2,
+                        })}
+                      </div>
                       <div className="mt-1 flex items-center gap-2 text-sm">
                         <span className="text-white/40">
-                          {px ? relativeTime(px.timestamp) : "—"}
+                          {px ? <RelativeTime at={px.timestamp} /> : "—"}
                         </span>
                         <FreshBadge fresh={Boolean(px?.fresh)} />
                       </div>
-                    </td>
-                    <td className="px-3 py-3">
+                    </TableCell>
+                    <TableCell className="px-3 py-3">
                       {isUsdc ? (
                         <span className="text-white/35">n/a</span>
                       ) : (
                         <BpsBadge bps={a.maxLtvBps} />
                       )}
-                    </td>
-                    <td className="px-3 py-4">
+                    </TableCell>
+                    <TableCell className="px-3 py-4">
                       {isUsdc ? (
                         <span className="text-white/35">n/a</span>
                       ) : (
                         <BpsBadge bps={a.liquidationThresholdBps} />
                       )}
-                    </td>
-                    <td className="px-3 py-4 text-right tabular-nums">
+                    </TableCell>
+                    <TableCell className="px-3 py-4 text-right tabular-nums">
                       {isUsdc
                         ? formatUsd(state.pool.totalSupply)
-                        : formatUsd(state.analytics.collateralPosted[a.symbol] ?? 0)}
-                    </td>
-                    <td className="px-5 py-4 text-right tabular-nums">
-                      {isUsdc ? `${(state.pool.utilizationBps / 100).toFixed(2)}%` : "—"}
-                    </td>
-                  </tr>
+                        : formatUsd(
+                            state.analytics.collateralPosted[a.symbol] ?? 0,
+                          )}
+                    </TableCell>
+                    <TableCell className="px-5 py-4 text-right tabular-nums">
+                      {isUsdc
+                        ? `${(state.pool.utilizationBps / 100).toFixed(2)}%`
+                        : "—"}
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </GlassCard>
 
-      {selected ? (
-        <AssetDrawer
-          asset={selected}
-          onClose={() => setOpen(null)}
-        />
-      ) : null}
+      <AssetDrawer
+        asset={selected ?? null}
+        open={Boolean(selected)}
+        onClose={() => setOpen(null)}
+      />
     </div>
   );
 }
 
 function FreshBadge({ fresh }: { fresh: boolean }) {
   return (
-    <span
+    <Badge
       className={cn(
-        "border px-2.5 py-0.5 font-orbitron text-[10px] font-semibold uppercase tracking-wider",
+        "rounded-none px-2.5 py-0.5 font-orbitron text-[10px] font-semibold uppercase tracking-wider",
         fresh
-          ? "border-white bg-white text-black"
-          : "border-white/40 text-white/50",
+          ? "border-white bg-white text-black hover:bg-white"
+          : "border-white/40 bg-transparent text-white/50",
       )}
+      variant="outline"
     >
       {fresh ? "Fresh" : "Stale"}
-    </span>
+    </Badge>
   );
 }
 
 function AssetDrawer({
   asset,
+  open,
   onClose,
 }: {
-  asset: AssetConfig;
+  asset: AssetConfig | null;
+  open: boolean;
   onClose: () => void;
 }) {
   const state = useProtocolState();
+  if (!asset) return null;
+
   const px = priceOf(asset.symbol, state.prices);
-  const exampleCollat = 10_000;
-  const exampleDebt = 4_000;
-  const exampleHf = computeHf(
-    exampleCollat * (asset.liquidationThresholdBps / 10_000),
-    exampleDebt,
-  );
-  const cfg = configOf(asset.symbol, state.assets);
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-black/50" onClick={onClose}>
-      <div
-        className="glass-card h-full w-full max-w-md overflow-y-auto rounded-none border-y-0 border-r-0 p-6"
-        onClick={(e) => e.stopPropagation()}
+    <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent
+        side="right"
+        className="w-full max-w-md border-white/15 bg-black p-6"
+        showCloseButton={false}
       >
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <AssetIcon symbol={asset.symbol} size={44} />
-            <div>
-              <h2 className="font-orbitron text-lg">{asset.symbol}</h2>
-              <p className="text-sm text-white/50">{asset.name}</p>
+        <SheetHeader className="p-0 text-left">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <AssetIcon symbol={asset.symbol} size={44} />
+              <div>
+                <SheetTitle className="font-orbitron text-lg">
+                  {asset.symbol}
+                </SheetTitle>
+                <p className="text-sm text-white/50">{asset.name}</p>
+              </div>
             </div>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Close
+            </Button>
           </div>
-          <button type="button" className="btn-ghost" onClick={onClose}>
-            Close
-          </button>
-        </div>
+        </SheetHeader>
 
         <dl className="mt-6 space-y-2 text-sm">
-          <Row k="Contract" v={<AddressChip address={asset.asset} />} />
           <Row k="Type" v={asset.type} />
-          <Row k="Supported" v={asset.supported ? "Yes" : "No"} />
-          <Row k="Token decimals" v={String(cfg?.tokenDecimals ?? 7)} />
-          <Row k="Oracle price decimals" v={String(cfg?.oraclePriceDecimals ?? 7)} />
           <Row
             k="Max LTV"
-            v={asset.symbol === "USDC" ? "n/a" : `${(asset.maxLtvBps / 100).toFixed(2)}% · ${asset.maxLtvBps} bps`}
-          />
-          <Row
-            k="Liq. threshold"
             v={
               asset.symbol === "USDC"
                 ? "n/a"
-                : `${(asset.liquidationThresholdBps / 100).toFixed(2)}% · ${asset.liquidationThresholdBps} bps`
+                : `${(asset.maxLtvBps / 100).toFixed(0)}%`
             }
           />
-          <Row k="Oracle price" v={formatUsd(px?.price ?? 0, { digits: 3 })} />
-          <Row k="Fresh" v={px?.fresh ? "Fresh" : "Stale"} />
+          <Row
+            k="Liquidation threshold"
+            v={
+              asset.symbol === "USDC"
+                ? "n/a"
+                : `${(asset.liquidationThresholdBps / 100).toFixed(0)}%`
+            }
+          />
+          <Row k="Price" v={formatUsd(px?.price ?? 0, { digits: 3 })} />
+          <Row k="Oracle" v={px?.fresh ? "Live" : "Stale"} />
         </dl>
-
-        {asset.symbol !== "USDC" ? (
-          <p className="mt-4 border border-white/10 bg-black p-3 text-xs text-white/55">
-            Example: {formatUsd(exampleCollat)} collateral, {formatUsd(exampleDebt)} debt → HF{" "}
-            {typeof exampleHf === "number" ? exampleHf.toFixed(2) : exampleHf}.
-          </p>
-        ) : null}
 
         <div className="mt-6 flex flex-col gap-2">
           {asset.symbol !== "USDC" ? (
-            <Link href="/app/vault" className="btn-primary text-center">
-              Use as collateral
-            </Link>
+            <Button asChild>
+              <Link href="/app/vault">Use as collateral</Link>
+            </Button>
           ) : (
             <>
-              <Link href="/app/lend" className="btn-primary text-center">
-                Supply
-              </Link>
-              <Link href="/app/borrow" className="btn-ghost text-center">
-                Borrow
-              </Link>
+              <Button asChild>
+                <Link href="/app/lend">Supply</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/app/borrow">Borrow</Link>
+              </Button>
             </>
           )}
         </div>
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
